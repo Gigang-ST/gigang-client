@@ -20,6 +20,7 @@ import {
 } from "@/lib/mcp/competition";
 import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
 import { updateGatheringViaMcp } from "@/lib/mcp/update-gathering";
+import { listKakaoRoomMembers } from "@/lib/mcp/list-kakao-room-members";
 import {
   BALANCES_DEFAULT_LIMIT,
   INBOX_DEFAULT_LIMIT,
@@ -183,7 +184,7 @@ async function runDuesTool<T>(
  *
  * 권한: 도구 대부분은 인증된 팀 멤버면 호출할 수 있고, **앱이 관리자에게만 보여주는 것**만
  *   admin 으로 좁힌다(#496) — `send_push`·`send_kakao_notice`·`list_members_attendance`·
- *   `create_gathering` 은 도구째, `get_member_profile` 의 생년월일·성별(+ `list_recent_members` 포함 시작 정보)과 `list_gathering_non_attendees` 의 참석
+ *   `list_kakao_room_members`·`create_gathering` 은 도구째, `get_member_profile` 의 생년월일·성별(+ `list_recent_members` 포함 시작 정보)과 `list_gathering_non_attendees` 의 참석
  *   통계는 필드 단위로. 판정은 전부 `ctx.is_admin` 이며, 게이트는 도구 핸들러가 아니라
  *   **쿼리·발송 함수 안**에 있다(호출부가 늘어도 새지 않게).
  *
@@ -443,6 +444,22 @@ const handler = createMcpHandler(
       },
       async (args, extra) =>
         runTool(extra, (ctx, supabase) => sendKakaoNotice(supabase, ctx, args)),
+    );
+
+    server.registerTool(
+      "list_kakao_room_members",
+      {
+        title: "단톡방 참여자 대조",
+        description:
+          "크루 카카오톡 단톡방 참여자와 사이트 활성 회원을 **이름으로** 맞춰 in_room(둘 다 있음) / not_in_room(사이트엔 있는데 단톡에 없음) / " +
+          "ambiguous(동명이인 — 단정 못 함) / room_only(단톡에만 있음)로 나눠 돌려줍니다. 읽기 전용, 운영진(admin) 전용입니다(참여자 이름은 개인정보). " +
+          "카톡 표시 이름이 사이트 실명과 다르면 못 맞춥니다 — 그 사람은 not_in_room 과 room_only 에 둘 다 나오니 사람이 짝지어 주세요. " +
+          "completeness 에 허브가 아는 인원(known)·카톡 전체 인원(total)·마지막 동기화 시각(synced_at)이 있습니다. incomplete=true 면 not_in_room 은 확정이 아닙니다. " +
+          "status 는 ok / skipped(이 환경엔 노티봇 미설정 또는 방 미설정) / failed(failure 에 허브 오류 코드 — 예: API 키에 rooms:read 권한이 없음) 입니다.",
+        inputSchema: {},
+      },
+      async (_args, extra) =>
+        runTool(extra, (ctx, supabase) => listKakaoRoomMembers(supabase, ctx)),
     );
 
     server.registerTool(
