@@ -54,6 +54,7 @@ import {
   getMemberProfile,
   listGatheringNonAttendees,
   listMembersAttendance,
+  listMyGatherings,
   listPushStatus,
   listRecentMembers,
   listTodayGatherings,
@@ -261,6 +262,32 @@ const handler = createMcpHandler(
       async (args, extra) =>
         runTool(extra, (ctx, supabase) =>
           listTodayGatherings(supabase, ctx.team_id, args.date),
+        ),
+    );
+
+    server.registerTool(
+      "list_my_gatherings",
+      {
+        title: "내가 참석 신청한 모임",
+        description:
+          "내가 참석 신청한 우리 팀 모임 목록을 시작 시각 오름차순으로 반환합니다(KST 기준 기간, 기본 오늘 ~ +30일). 삭제·취소된 모임과 참석을 취소한 모임은 빠집니다. 대상은 항상 본인뿐입니다. 날짜는 YYYY-MM-DD.",
+        inputSchema: {
+          from: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD 형식이어야 합니다.")
+            .optional(),
+          to: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD 형식이어야 합니다.")
+            .optional(),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, (ctx, supabase) =>
+          listMyGatherings(supabase, ctx.team_id, ctx.mem_id, {
+            from: args.from,
+            to: args.to,
+          }),
         ),
     );
 
