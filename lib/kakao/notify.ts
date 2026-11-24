@@ -258,3 +258,104 @@ export async function sendKakao(
 
   return result;
 }
+
+export type KakaoRoomMembersResult =
+  | {
+      ok: true;
+      /** 참여자 이름. 아직 말하거나 태그된 적이 없어 허브가 이름을 모르면 null. 계정 ID 는 넘기지 않는다. */
+      names: (string | null)[];
+      /** 허브가 아는 참여자 수. */
+      known: number;
+      /** 카톡이 알려 준 전체 인원(모르면 null). `known` 보다 크면 목록이 덜 찼다. */
+      total: number | null;
+      openChat: boolean;
+      /** 마지막 전체 동기화 시각(epoch ms). 아직 없으면 null. */
+      syncedAt: number | null;
+    }
+  | {
+      ok: false;
+      /** 일부러 안 불렀다 — `SendKakaoOptions` 의 skipped 와 같은 뜻. */
+      skipped?: "disabled" | "no_room";
+      failure?: NotiBotErrorJSON;
+    };
+
+export type FetchKakaoRoomMembersOptions = {
+  /** 테스트 주입용. */
+  fetchFn?: typeof fetch;
+};
+
+/**
+ * 이 팀 단톡방의 참여자 이름 목록을 허브에서 읽는다(읽기 전용, API 키에 `rooms:read` 스코프 필요).
+ *
+ * `sendKakao` 와 같은 환경변수·팀 설정의 방을 쓴다. 방이 이름으로 설정돼 있으면(UUID 가 아니면)
+ * 허브 방 목록에서 **이름이 정확히 하나** 맞는 방을 골라 고정 ID 로 부른다 — 못 고르면 실패로 돌려준다.
+ *
+ * **던지지 않는다**(`sendKakao` 와 같다). 참여자 이름은 개인정보라 로그엔 건수만 남긴다.
+ */
+export async function fetchKakaoRoomMembers(
+  teamId: string,
+  opts: FetchKakaoRoomMembersOptions = {},
+): Promise<KakaoRoomMembersResult> {
+  const origin = hubOrigin();
+  const apiKey = apiKeyFromEnv();
+  if (!origin || !apiKey) {
+    console.info("[kakao] 참여자 조회 비활성(환경변수 미설정) — skip");
+    return { ok: false, skipped: "disabled" };
+  }
+
+  try {
+    const target = await roomTarget(teamId);
+    if (!target) {
+      console.info("[kakao] 이 팀은 카톡방 미설정 — 참여자 조회 skip", { teamId });
+      return { ok: false, skipped: "no_room" };
+    }
+
+    const bot = new NotiBot({
+      baseUrl: origin,
+      apiKey,
+      timeoutMs: TIMEOUT_MS,
+      ...(opts.fetchFn ? { fetch: opts.fetchFn } : {}),
+    });
+
+    let roomId: string;
+    if ("roomId" in target) {
+      roomId = target.roomId;
+    } else {
+      const matches = (await bot.listRooms()).filter((r) => r.name === target.room && r.id);
+      if (matches.length !== 1 || !matches[0].id) {
+        const failure: NotiBotErrorJSON = {
+          name: "RoomUnresolved",
+          message:
+            matches.length === 0
+              ? "설정된 방 이름과 맞는 방을 허브에서 못 찾았다. 팀 설정 kakao.room_id 를 방 고정 ID 로 두면 확실하다."
+              : "설정된 방 이름과 맞는 방이 여럿이다. 팀 설정 kakao.room_id 를 방 고정 ID 로 바꿔야 한다.",
+          retryable: false,
+        };
+        console.error("[kakao] 참여자 조회 방 확정 실패", { teamId, matches: matches.length });
+        return { ok: false, failure };
+      }
+      roomId = matches[0].id;
+    }
+
+    const res = await bot.getRoomMembers({ roomId });
+    console.info("[kakao] 참여자 조회", { teamId, known: res.known, total: res.total });
+    return {
+      ok: true,
+      names: res.members.map((m) => m.name),
+      known: res.known,
+      total: res.total,
+      openChat: res.openChat,
+      syncedAt: res.syncedAt,
+    };
+  } catch (error) {
+    const failure: NotiBotErrorJSON = isNotiBotError(error)
+      ? error.toJSON()
+      : {
+          name: "UnexpectedError",
+          message: error instanceof Error ? error.message : String(error),
+          retryable: false,
+        };
+    console.error("[kakao] 참여자 조회 실패", failure);
+    return { ok: false, failure };
+  }
+}

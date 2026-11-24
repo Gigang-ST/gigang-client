@@ -29,7 +29,7 @@
 4. 안 쓰는 토큰은 같은 화면에서 **폐기**할 수 있습니다. 폐기 즉시 접속이 차단됩니다.
 
 - 토큰은 **본인 것만** 보이고 폐기할 수 있습니다.
-- 조회는 대체로 팀 멤버면 누구나. **알림 발송(`send_push`)·단톡방 공지(`send_kakao_notice`)·멤버 참석 현황(`list_members_attendance`)은 owner/admin 역할만** 됩니다(§4 권한 경계).
+- 조회는 대체로 팀 멤버면 누구나. **알림 발송(`send_push`)·단톡방 공지(`send_kakao_notice`)·단톡방 참여자 대조(`list_kakao_room_members`)·멤버 참석 현황(`list_members_attendance`)은 owner/admin 역할만** 됩니다(§4 권한 경계).
 
 ---
 
@@ -79,6 +79,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `list_push_status` | — | 멤버별 웹푸시 구독 여부 | 멤버 |
 | `send_push` | `member_ids`(uuid[]), `title`, `message` | 지정 멤버에게 인앱+웹푸시 발송 | **admin** |
 | `send_kakao_notice` | `message`(최대 4000자), `mentions?`(이름[]), `request_id?`, `dry_run?` | 크루 카톡 단톡방에 노티봇 공지(자유 문구) — 방은 서버 설정으로 고정, 어드민 발송 이력에 남음 | **admin** |
+| `list_kakao_room_members` | — | 크루 단톡방 참여자와 사이트 활성 회원을 **이름으로 대조** — `in_room`(둘 다)·`not_in_room`(사이트엔 있고 단톡엔 없음)·`ambiguous`(동명이인)·`room_only`(단톡에만) + 목록 완전성(`known`·`total`·`synced_at`). 읽기 전용, 이름은 응답에만 실리고 로그·감사엔 건수만 | **admin** |
 | `create_gathering` | `gthr_nm`, `gthr_type_enm`, `sprt_cd`, `stt_at`, `end_at?`, `loc_txt?`, `desc_txt?`, `max_prt_cnt?`, `dry_run?` | 새 모임(벙) 개설 — 작성자 자동 참석 + 팀 전원 알림 | **admin** |
 | `update_gathering` | `gathering_id`(uuid) + 바꿀 필드만(`gthr_nm`, `stt_at`, `end_at`, `loc_txt`, `max_prt_cnt`, `desc_txt`), `dry_run?`, `notify?` | 모임 수정 — 바뀐 필드 목록·전/후 반환. 알림은 `notify: true` 일 때만 | **모임 작성자 또는 admin** |
 | `create_sch_post` | `sch_nm`, `post_type`(`race_entry`·`sale`·`session`·`general`), `evt_stt_at`, `evt_end_at?`, `url?`, `cont_txt?`, `dry_run?` | 일정 탭에 소식(대회 접수 정보·판매·세션·일반) 등록 — 팀 전원 새 정보 알림 | 멤버 (앱과 같음) |
@@ -222,6 +223,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `list_gathering_non_attendees` 의 **참석 횟수·마지막 참석시각** (필드만) | 위 `list_members_attendance` 와 **같은 통계**입니다. 도구 하나만 막으면 옆 도구로 그대로 나갑니다 |
 | `send_push` (도구째) | 쓰기 — 되돌릴 수 없고 크루원에게 직접 나갑니다 |
 | `send_kakao_notice` (도구째) | 쓰기 — 되돌릴 수 없고 단톡방 크루 전원에게 보입니다 |
+| `list_kakao_room_members` (도구째) | 단톡방 참여자 이름은 개인정보입니다(#749). 읽기 전용이라도 admin 에게만 |
 | `create_gathering` (도구째) | 쓰기 — 만드는 순간 팀 전원에게 새 모임 알림이 나갑니다 |
 | `create_competition` (도구째) | 쓰기 — 대회는 팀 공용 데이터라 마구 만들면 목록이 오염됩니다. 앱의 서버 액션보다 좁게 둡니다 |
 | `register_competition` 의 **`member_id`·`member_name`**(남을 대신 신청만) | 앱에서 남의 참가 신청을 넣는 화면은 없고(관리자 화면은 목록·삭제), 본인 신청은 멤버 누구나 합니다 |
@@ -373,6 +375,11 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | 같은 `request_id` 재호출인데 `sent` 로 두 번 남음 | 이 기능 전(#631 이전)에 쌓인 이력이거나, 허브가 그 응답에 `duplicate` 를 싣지 않은 경우입니다. 단톡방에 실제로 몇 건 갔는지는 허브 발송 이력에서 확인하세요. |
 | `send_kakao_notice`가 `failed` | `failure.code` 를 보세요. `mention_name_unknown`·`mention_name_ambiguous` 는 태그 이름을 고쳐 **새로** 보내고, `retryable: true`(타임아웃·네트워크·429·5xx)면 **같은 `request_id`** 로 다시 부르거나 `/admin/kakao` 의 「다시 보내기」를 쓰세요. 새 `request_id` 로 보내면 이미 접수됐던 건이 한 번 더 나갈 수 있습니다. `idempotency_conflict` 는 이미 접수된 건입니다 — 다시 보내지 마세요. |
 | 어드민 「다시 보내기」로 보낸 공지에 태그가 빠짐 | 발송 이력은 본문만 저장하고 태그 목록은 저장하지 않아, 다시 보내기는 태그 없이 `@이름` 글자로 나갑니다. 태그가 중요하면 「다시 보내기」 대신 MCP 에서 같은 `request_id`·`mentions` 로 다시 부르세요. |
+| `list_kakao_room_members`가 거부됨 | 단톡방 참여자 대조는 owner/admin 전용입니다. |
+| `list_kakao_room_members`가 `skipped` | 이 환경엔 노티봇 설정(허브 주소·API 키)이나 이 팀의 단톡방 설정이 없습니다. |
+| `list_kakao_room_members`가 `failed` | `failure.code` 를 보세요. 권한 오류(401/403 계열)면 노티봇 API 키에 `rooms:read` 스코프가 없는 것입니다 — 허브 콘솔에서 사람이 받아야 합니다. `RoomUnresolved` 는 팀 설정 `kakao.room_id` 가 이름이라 방을 하나로 못 고른 것 — 방 고정 ID 로 바꾸세요. |
+| `list_kakao_room_members` 에 `incomplete: true` | 허브가 아는 인원(`known`)이 카톡 전체 인원(`total`)보다 적습니다. 오픈채팅은 말하거나 태그된 적 없는 사람을 허브가 모를 수 있어 `not_in_room` 은 확정이 아닙니다. `synced_at` 이 오래됐으면 허브 동기화를 기다리세요. |
+| `list_kakao_room_members` 에서 같은 사람이 `not_in_room` 과 `room_only` 에 둘 다 나옴 | 카톡 표시 이름과 사이트 실명이 달라 이름으로 못 맞춘 것입니다. 숨기지 않고 양쪽에 보여 주니 사람이 짝지어 주세요. 동명이인은 `ambiguous` 로 빠집니다. |
 | `create_gathering`이 일시를 거부함 | 한국시간 `YYYY-MM-DD HH:mm` 로 주세요. `Z`·`+09:00` 표기와 "내일 아침" 같은 자연어는 받지 않습니다. |
 | 모임을 잘못 만들었음 | 응답의 `gthr_url` 로 들어가 웹에서 수정·취소하세요(MCP엔 수정·삭제 도구가 없습니다). 이미 나간 알림은 되돌릴 수 없습니다. |
 | `create_sch_post`가 일시를 거부함 | 한국시간 `YYYY-MM-DD HH:mm` 로 주세요. `Z`·`+09:00`·날짜만·자연어는 받지 않습니다. 종료가 시작보다 앞서도 거부됩니다. |
