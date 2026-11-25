@@ -98,7 +98,6 @@ export function teamManifestRedirects() {
 /**
  * 한 팀 전용 화면 → 그 화면의 주인 팀. 다른 팀 주소로 들어오면 그 팀의 홈(`/`)으로 보낸다.
  *
- * - `/intro`는 서울 기강 전용 랜딩이다 — 사진·구호가 기강 것이라 팀별 문구로 바꾸지 않는다(2026-11-15 결정).
  * - `/join`(크루 소개)·`/rules`(회칙)는 본문 전체가 기강 운영 내용이다 — 양재천·영동2교 집결, 단장 연락처, 86년생 나이 제한,
  *   회비. 다른 팀 운영 내용은 아직 없어 지어낼 수 없으므로 그 팀 주소에선 홈으로 보낸다(#658). 더보기 「○○ 소개」 줄도
  *   이 표를 보고 숨는다(`app/(info)/settings/page.tsx`), 사이트맵도 이 표로 거른다(`app/sitemap.ts`).
@@ -106,7 +105,6 @@ export function teamManifestRedirects() {
  * proxy에서 쓰므로 순수 문자열 비교만 한다(이 파일 머리 주석과 같은 이유).
  */
 const TEAM_ONLY_PATHS: Readonly<Record<string, string>> = {
-  "/intro": "gigang",
   // 기강 소개(#752) — 글·사진이 기강 것이다(`lib/about/content.ts`)
   "/about": "gigang",
   "/join": "gigang",

@@ -62,8 +62,8 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
   `getTeamPageDescription()`. 조사는 `josa()`(`lib/josa.ts` — 「기강은」/「모보브는」). 「기강」 뜻에 기댄 말장난은
   `lib/team-copy.ts` 의 `TEAM_VOICE`(없는 팀은 중립 문구). 팀 문구는 요청 주소를 읽으므로 **Suspense 안에서만** 부른다
   (미리 만드는 껍데기에서 부르면 그 페이지 전체가 껍데기 없이 그려진다). 새 팀 절차는 `docs/new-team-checklist.md`
-  - 예외: `/intro` 는 기강 전용 랜딩 — 다른 팀 주소에선 홈으로 보낸다(2026-11-15 결정, `teamOnlyPathRedirect` · `proxy.ts`).
-    `/join`(크루 소개)·`/rules`(회칙)도 본문이 기강 운영 내용이라 같은 표로 기강 전용이다(#658 — 더보기 소개 줄·사이트맵도 따라 숨는다)
+  - 예외: `/join`(크루 소개)·`/rules`(회칙)는 본문이 기강 운영 내용이라 다른 팀 주소에선 홈으로 보낸다
+    (`teamOnlyPathRedirect` · `proxy.ts`, #658 — 더보기 소개 줄·사이트맵도 따라 숨는다)
 - **운영 MCP 같이 넣기**: 기능을 추가·변경하면 운영 MCP(`app/api/mcp`, `gigang-ops`) 도구도 **같은 PR에서**
   추가·변경한다. 안 넣을 거면 이유를 PR 본문(템플릿 「운영 MCP 반영」)에 적는다. 절차는 `app/api/mcp/README.md` §7 (ADR-0006)
 - **멤버 조회**: `getCurrentMember()` (`lib/queries/member.ts`) — React cache()로 같은 렌더 내 중복 쿼리 방지
@@ -147,11 +147,6 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 | 백엔드 개발자 | `.claude/agents/backend-developer.md` | DB/API/인증/RLS/서버 액션 |
 | DevOps 엔지니어 | `.claude/agents/devops-engineer.md` | CI/CD, Vercel 배포, Supabase 인프라 |
 
-**정본은 `.claude/agents/*.md`이고 `.codex/agents/*.toml`은 그 미러다**(Codex가 md 프론트매터를
-안 읽어 형식을 따로 둔다). 내용은 **한 글자도 갈라지지 않게** 같이 고친다 — 여기서 갈라지면
-같은 역할의 에이전트가 도구에 따라 다른 지시를 받는데, 어느 쪽이 맞는지 알 방법이 없다
-(`.skillshare/skills` 정본이 갈라진 채 굴렀던 것과 같은 사고다 — §스킬).
-
 ⚠️ **변환할 때 `claude`를 일괄치환하지 않는다.** 바꾸는 건 **정본 파일을 가리키는 이름**
 (`CLAUDE.md` → `AGENTS.md`) 하나뿐이다. `.claude/docs/coding-standards.md` 같은 **실제 경로는
 그대로 둔다** — 실제로 `.Codex/docs/`라는 없는 디렉터리를 가리킨 채 커밋될 뻔했고, 그러면
@@ -194,9 +189,7 @@ t3-env로 관리되며 `lib/env.ts`에서 import:
 
 ## MCP 설정 동기화 규칙
 
-- MCP 서버를 추가하거나 변경하면 `.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml`을 함께 갱신한다.
-- Codex 프로젝트 설정 파일은 `.agents`가 아니라 `.codex/config.toml`에 둔다.
-- Cursor는 Codex의 `.codex/config.toml`을 직접 읽지 않으므로, Cursor 전용 설정은 `.cursor/*`에서 별도로 관리한다.
+- MCP 서버를 추가하거나 변경하면 `.mcp.json`, `.cursor/mcp.json`을 함께 갱신한다.
 - 스킬 동기화 규칙(`skillshare sync`)은 없어졌다 — §스킬 참조.
 
 ## 참고 문서

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 
-import { UserX } from "lucide-react";
+import { MoreHorizontal, UserX } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -10,7 +10,12 @@ import { leaveMemberFromDues } from "@/app/actions/admin/manage-member";
 import { recalculateBalance } from "@/app/actions/dues/recalculate-balance";
 
 import { Button } from "@/components/ui/button";
-import { CardItem } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { H2, Body, Caption, SectionLabel } from "@/components/common/typography";
 import { SegmentControl } from "@/components/common/segment-control";
@@ -140,55 +145,82 @@ export function LedgerClient({
       {shown.length === 0 ? (
         <EmptyState variant="card" message="조건에 맞는 회원이 없습니다." />
       ) : (
-        <CardItem className="flex flex-col divide-y divide-border p-0 overflow-hidden">
-          {shown.map((r) => (
-            // 폭이 모자라면(미납 행은 버튼이 셋이라 휴대폰에서 자주) 버튼 묶음이 다음 줄로 내려간다.
-            // 예전엔 한 줄에 우겨 넣어 왼쪽 칸이 0으로 눌려 「11개월 미납」이 한 자씩 세로로 꺾였다(#678).
-            <div key={r.memId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
-              {/* 이름 영역 = 회원별 납부 근거 드릴다운 진입점 (QS-7) */}
-              <Link href={`/admin/dues/members/${r.memId}`} className="flex min-w-0 flex-col gap-0.5">
-                <Body className="font-semibold underline-offset-2 hover:underline">{memberLabel(r, dupNames)}</Body>
-                <Caption className="whitespace-nowrap">
-                  {r.balance === 0
-                    ? "정상"
-                    : r.months === 0
-                      ? `1개월 미만 ${r.balance < 0 ? "미납" : "예치"}`
-                      : `${r.months}개월 ${r.balance < 0 ? "미납" : "예치"}`}
-                </Caption>
-              </Link>
-              <div className="ml-auto flex shrink-0 items-center gap-2">
-                <Body
-                  className={cn(
-                    "font-semibold whitespace-nowrap",
-                    r.balance < 0 && "text-destructive",
-                    r.balance > 0 && "text-success",
-                  )}
-                >
-                  {r.balance > 0 ? "+" : ""}
-                  {r.balance.toLocaleString()}원
-                </Body>
-                <Button asChild size="sm" variant="outline">
-                  <Link href="/admin/dues/exemptions">면제</Link>
-                </Button>
-                {r.status === "미납" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                    disabled={leavePending}
-                    onClick={() => onLeaveMember(r)}
-                  >
-                    <UserX className="size-3.5" />
-                    {leavePending && leavingMemberId === r.memId ? "처리 중…" : "탈퇴"}
-                  </Button>
-                )}
-                <Button size="sm" variant="outline" disabled title="P3 예정">
-                  독려
-                </Button>
-              </div>
-            </div>
-          ))}
-        </CardItem>
+        // 처리됨 표(inbox/processed-rows)와 같은 모양 — 테두리 상자 없이 윗선 + 행마다 아랫선.
+        // 한 회원 = 한 행이고 면제·탈퇴·독려는 ⋯ 메뉴로 모아 384px 폰에서도 한 줄에 들어간다.
+        <div className="overflow-x-auto">
+          <table className="w-full border-t border-border text-sm">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="px-2 py-2"><Caption>회원</Caption></th>
+                <th className="px-2 py-2"><Caption>상태</Caption></th>
+                <th className="px-2 py-2 text-right"><Caption>금액</Caption></th>
+                <th className="px-2 py-2"><Caption>동작</Caption></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r) => (
+                <tr key={r.memId} className="border-b border-border align-top">
+                  {/* 이름 칸 = 회원별 납부 근거 드릴다운 진입점 (QS-7) */}
+                  <td className="px-2 py-2">
+                    <Link href={`/admin/dues/members/${r.memId}`}>
+                      <Caption className="whitespace-nowrap text-foreground underline-offset-2 hover:underline">
+                        {memberLabel(r, dupNames)}
+                      </Caption>
+                    </Link>
+                  </td>
+                  <td className="px-2 py-2">
+                    <Caption className="whitespace-nowrap text-foreground">
+                      {r.balance === 0
+                        ? "정상"
+                        : r.months === 0
+                          ? `1개월 미만 ${r.balance < 0 ? "미납" : "예치"}`
+                          : `${r.months}개월 ${r.balance < 0 ? "미납" : "예치"}`}
+                    </Caption>
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    <Body
+                      className={cn(
+                        "font-semibold whitespace-nowrap",
+                        r.balance < 0 && "text-destructive",
+                        r.balance > 0 && "text-success",
+                      )}
+                    >
+                      {r.balance > 0 ? "+" : ""}
+                      {r.balance.toLocaleString()}원
+                    </Body>
+                  </td>
+                  <td className="px-2 py-1">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost" className="size-8" aria-label={`${r.name} 작업`}>
+                          <MoreHorizontal className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href="/admin/dues/exemptions">면제</Link>
+                        </DropdownMenuItem>
+                        {r.status === "미납" && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            disabled={leavePending}
+                            onSelect={() => onLeaveMember(r)}
+                          >
+                            <UserX className="size-3.5" />
+                            {leavePending && leavingMemberId === r.memId ? "처리 중…" : "탈퇴"}
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem disabled title="P3 예정">
+                          독려
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
