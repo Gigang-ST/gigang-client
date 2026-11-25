@@ -41,7 +41,7 @@ export async function getGatheringAttendanceHistory(
     .select(
       // mem_mst FK가 둘(mem_id·actor_mem_id) → 임베드 관계를 FK 이름으로 명시하지 않으면
       // PostgREST가 "more than one relationship" 에러를 낸다. 취소 대상은 mem_id.
-      "hist_id, mem_id, evt_cd, actor_cd, reason_txt, evt_at, mem_mst!gthr_attd_hist_mem_id_fkey(mem_id, mem_nm, avatar_url)",
+      "hist_id, mem_id, evt_cd, actor_cd, reason_txt, noshow_yn, evt_at, mem_mst!gthr_attd_hist_mem_id_fkey(mem_id, mem_nm, avatar_url)",
     )
     .eq("gthr_id", gthrId)
     .order("evt_at", { ascending: false });
@@ -53,5 +53,9 @@ export async function getGatheringAttendanceHistory(
     return [];
   }
 
-  return (data ?? []) as GatheringAttdHistRow[];
+  // 노쇼 처리 사유(#759)는 운영 기록이라 멤버에게 내려주지 않는다 — 본인이 남기는 취소 사유와 달리
+  // 운영진이 적은 말이 팀 전체에 공개되면 안 된다. 행(취소 시각)은 그대로 두고 사유만 가린다.
+  return ((data ?? []) as (GatheringAttdHistRow & { noshow_yn?: boolean })[]).map(
+    ({ noshow_yn, ...row }) => (noshow_yn ? { ...row, reason_txt: null } : row),
+  );
 }

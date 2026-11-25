@@ -59,12 +59,16 @@ BEGIN
   IF v_aprv THEN
     -- 승인제 — 신청 행(gthr_aply_rel)까지 canceled 로 정리해야 유령 확정자가 안 남는다.
     v_status := public.cancel_gthr_application(p_gthr_id, p_mem_id, p_team_id, 'admin', p_actor_mem_id, v_reason);
-    IF v_status <> 'ok' THEN
-      RETURN jsonb_build_object('status', v_status);
-    END IF;
-    v_res := jsonb_build_object('promoted', '[]'::jsonb, 'notify_open_seat', false);
+    v_res := jsonb_build_object('promoted', '[]'::jsonb, 'notify_open_seat', false, 'status', v_status);
   ELSE
     v_res := public.cancel_gthr_attendance(p_gthr_id, p_mem_id, 'admin', p_actor_mem_id, v_reason);
+    -- cancel_gthr_attendance 는 성공 시 status 키가 없고 실패는 예외로 던진다 → 없으면 ok.
+    v_res := v_res || jsonb_build_object('status', COALESCE(v_res->>'status', 'ok'));
+  END IF;
+
+  -- 취소가 ok 가 아니면 노쇼 표시를 하지 않고 그 status 를 그대로 돌려준다.
+  IF v_res->>'status' <> 'ok' THEN
+    RETURN v_res;
   END IF;
 
   -- 방금 같은 트랜잭션에서 쌓인 취소 이력(가장 최근 것)에 노쇼 표시.
@@ -77,7 +81,7 @@ BEGIN
     LIMIT  1
   );
 
-  RETURN COALESCE(v_res, '{}'::jsonb) || jsonb_build_object('status', 'ok');
+  RETURN v_res;
 END;
 $$;
 
