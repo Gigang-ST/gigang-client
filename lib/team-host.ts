@@ -105,6 +105,8 @@ export function teamManifestRedirects() {
  * proxy에서 쓰므로 순수 문자열 비교만 한다(이 파일 머리 주석과 같은 이유).
  */
 const TEAM_ONLY_PATHS: Readonly<Record<string, string>> = {
+  // 기강 소개(#752) — 글·사진이 기강 것이다(`lib/about/content.ts`)
+  "/about": "gigang",
   "/join": "gigang",
   "/rules": "gigang",
 };

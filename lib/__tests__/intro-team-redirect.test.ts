@@ -15,11 +15,11 @@ const { proxy } = await import("@/proxy");
  * 다른 팀 주소로 열면 그 팀 홈으로 보낸다.
  */
 describe("teamOnlyPathRedirect", () => {
-  it.each(["/join", "/rules"])("기강은 %s 를 연다", (path) => {
+  it.each(["/join", "/rules", "/about"])("기강은 %s 를 연다", (path) => {
     expect(teamOnlyPathRedirect(path, "gigang")).toBeNull();
   });
 
-  it.each(["/join", "/rules"])("다른 팀은 홈으로 — 끝 / 가 붙어도 같다 (%s)", (path) => {
+  it.each(["/join", "/rules", "/about"])("다른 팀은 홈으로 — 끝 / 가 붙어도 같다 (%s)", (path) => {
     expect(teamOnlyPathRedirect(path, "ulsan")).toBe("/");
     expect(teamOnlyPathRedirect(`${path}/`, "ulsan")).toBe("/");
   });
