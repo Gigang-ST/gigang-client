@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Fragment } from "react";
 
+import { AboutArchiveGrid } from "@/components/about/about-archive-grid";
 import {
   ABOUT_ARCHIVE,
   ABOUT_EVENTS,
@@ -137,7 +138,7 @@ export function AboutPage() {
               ))}
             </ol>
           </div>
-          <Photo src={ABOUT_PHOTO.story} alt={ABOUT_STORY.photoAlt} sizes="(min-width: 1000px) 440px, 100vw" position="center 55%" className="ab-story-photo" />
+          <Photo src={ABOUT_PHOTO.story} alt={ABOUT_STORY.photoAlt} sizes="(min-width: 1000px) 440px, 100vw" position="center 45%" className="ab-story-photo" />
         </div>
       </section>
 
@@ -152,11 +153,6 @@ export function AboutPage() {
                 <div className="ab-card-vis">
                   <Image className="ph" src={c.photo} alt={c.photoAlt} fill sizes="(min-width: 1200px) 280px, (min-width: 760px) 50vw, 100vw" unoptimized style={{ objectPosition: c.position }} />
                   {c.label && <span className="ab-card-lab">{c.label}</span>}
-                  {c.patch && (
-                    <div className="ab-card-patch">
-                      <Image src={c.patch} alt={c.patchAlt ?? ""} fill sizes="84px" unoptimized />
-                    </div>
-                  )}
                 </div>
                 <div className="ab-card-body">
                   <h3>{c.name}</h3>
@@ -247,11 +243,7 @@ export function AboutPage() {
           <Tag>{ABOUT_ARCHIVE.tag}</Tag>
           <h2 className="ab-h2">{ABOUT_ARCHIVE.title}</h2>
           <p>{ABOUT_ARCHIVE.lead}</p>
-          <div className="ab-grid">
-            {ABOUT_ARCHIVE.photos.map((p) => (
-              <Photo key={p.src} src={p.src} alt={p.alt} sizes="(min-width: 1000px) 280px, 33vw" />
-            ))}
-          </div>
+          <AboutArchiveGrid photos={ABOUT_ARCHIVE.photos} />
         </div>
       </section>
 

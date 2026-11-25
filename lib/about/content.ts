@@ -23,8 +23,6 @@ export const ABOUT_PHOTO = {
   a4: `${IMG}/photo_a4.jpg`,
   a7: `${IMG}/photo_a7.jpg`,
   a8: `${IMG}/photo_a8.jpg`,
-  patchHyrox: `${IMG}/patch_H_hyrox.png`,
-  patchTrail: `${IMG}/patch_H_trail.png`,
 } as const;
 
 /** 얼굴이 나오는 사진 — 공개 전 본인 동의 확인 전까지 운영 반영 금지(PR 본문 참고). */
@@ -45,9 +43,6 @@ export const PENDING_TIMELINE = [
   { when: "2026", title: "종목이 늘다", text: "하이록스, 트레일, 동계 훈련 PB클래스. 종목마다 팀이 생겼습니다." },
   { when: "지금", title: "스포츠팀 기강", text: "활동 지역은 양재천, 강남, 교대, 대치유수지, 한강." },
 ] as const;
-
-/** 패치 확정·공개 시점이 미정이라 카드 문구에 자리표시로 남겨 둔다. */
-export const PENDING_PATCH_NOTE = "일정에 오거나 대회를 같이 나가면 받아요.";
 
 export const ABOUT_NAV_LINKS = [
   { href: "#story", label: "STORY" },
@@ -88,9 +83,6 @@ export type AboutCard = {
   position: string;
   /** 사진 왼쪽 위 라벨 */
   label?: string;
-  /** 사진 오른쪽 아래 패치 */
-  patch?: string;
-  patchAlt?: string;
   body: readonly (readonly string[])[];
   /** 아래 줄: 굵은 부분 + 나머지 */
   getBold: string;
@@ -121,11 +113,9 @@ export const ABOUT_WHAT = {
       photo: ABOUT_PHOTO.hyrox,
       photoAlt: "하이록스 훈련",
       position: "center",
-      patch: ABOUT_PHOTO.patchHyrox,
-      patchAlt: "하이록스 기강 패치 시안",
       body: [["러닝과 8개 운동 스테이션.", "일정에서 같이 연습하고, 대회도 같이 나갑니다."]],
-      getBold: "하이록스 패치",
-      getRest: ` ${PENDING_PATCH_NOTE}`,
+      getBold: "하이록스 선수",
+      getRest: "가 되는 곳",
     },
     {
       key: "trail",
@@ -134,19 +124,17 @@ export const ABOUT_WHAT = {
       photo: ABOUT_PHOTO.trail,
       photoAlt: "트레일 정상 단체 사진",
       position: "center 35%",
-      patch: ABOUT_PHOTO.patchTrail,
-      patchAlt: "트레일 기강 패치 시안",
       body: [["산길을 같이 달립니다.", "트레일러닝 일정에 나오면 됩니다."]],
-      getBold: "트레일 패치",
-      getRest: " 트레일러닝 일정에 나오면 받아요.",
+      getBold: "트레일 러너",
+      getRest: "가 되는 곳",
     },
     {
       key: "pb",
       name: "PB클래스",
       en: "WINTER 10K PROJECT",
-      photo: ABOUT_PHOTO.pb,
-      photoAlt: "PB클래스 러너",
-      position: "center 0%",
+      photo: ABOUT_PHOTO.pbTrain,
+      photoAlt: "PB클래스 야간 트랙 훈련",
+      position: "center 70%",
       label: "PB CLASS",
       body: [
         ["12주 동계 훈련.", "기록을 깰 사람과 10K가 처음인 사람이 같이 뜁니다."],
