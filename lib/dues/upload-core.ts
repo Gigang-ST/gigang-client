@@ -243,6 +243,7 @@ export async function ingestDuesRows(
         .from("fee_txn_hist")
         .select("txn_id, txn_dt, txn_tm, txn_amt, raw_name, txn_io_enm")
         .eq("team_id", teamId)
+        .is("split_parent_id", null)
         .gte("txn_dt", dates[0])
         .lte("txn_dt", dates[dates.length - 1])
         .order("txn_id"),
@@ -348,6 +349,7 @@ export async function ingestDuesRows(
           .eq("txn_dt", row.txn_dt)
           .eq("txn_amt", row.txn_amt)
           .eq("raw_name", row.raw_name)
+          .is("split_parent_id", null)
           .is("txn_bal_amt", null);
         fill = row.txn_tm ? fill.eq("txn_tm", row.txn_tm) : fill.is("txn_tm", null);
         await fill;

@@ -63,6 +63,7 @@ export function InboxRow({
   onArrow,
   onEnterNext,
   onDelete,
+  onSplit,
   deleteBusy,
 }: {
   txn: InboxTxn;
@@ -80,6 +81,8 @@ export function InboxRow({
   onEnterNext: () => void;
   /** 미확정 거래 소프트 삭제(재업로드 재유입 차단) — 잘못 들어온 은행 행 제거용 */
   onDelete: () => void;
+  /** 이 거래를 금액으로 나눠 줄마다 다른 분류로 확정(#754) */
+  onSplit: () => void;
   /** 다른 행 삭제 진행 중 — 중복 실행 방지 */
   deleteBusy: boolean;
 }) {
@@ -212,6 +215,9 @@ export function InboxRow({
       <td className="px-2 py-2">
         <div className="flex items-center gap-1.5">
           <Badge className={cn("border-0", badge.cls)}>{badge.label}</Badge>
+          <Button type="button" size="xs" variant="outline" onClick={onSplit}>
+            나눠 넣기
+          </Button>
           <Button
             type="button"
             size="xs"
