@@ -1835,6 +1835,8 @@ export type Database = {
           project_id: string | null
           raw_memo: string | null
           raw_name: string
+          split_parent_id: string | null
+          split_yn: boolean
           team_id: string
           txn_amt: number
           txn_bal_amt: number | null
@@ -1859,6 +1861,8 @@ export type Database = {
           project_id?: string | null
           raw_memo?: string | null
           raw_name: string
+          split_parent_id?: string | null
+          split_yn?: boolean
           team_id: string
           txn_amt: number
           txn_bal_amt?: number | null
@@ -1883,6 +1887,8 @@ export type Database = {
           project_id?: string | null
           raw_memo?: string | null
           raw_name?: string
+          split_parent_id?: string | null
+          split_yn?: boolean
           team_id?: string
           txn_amt?: number
           txn_bal_amt?: number | null
@@ -1895,6 +1901,13 @@ export type Database = {
           upd_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fee_txn_hist_split_parent_id_fkey"
+            columns: ["split_parent_id"]
+            isOneToOne: false
+            referencedRelation: "fee_txn_hist"
+            referencedColumns: ["txn_id"]
+          },
           {
             foreignKeyName: "fk_fee_txn_hist__cfm_mem_mst"
             columns: ["cfm_by_mem_id"]

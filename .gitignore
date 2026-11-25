@@ -107,6 +107,3 @@ CLAUDE.local.md
 
 # proxmox MCP 서버가 작업 디렉터리 루트에 쓰는 임시 파일
 /proxmox-jobs.sqlite3*
-
-# 인트로 사진 목록·버전 — scripts/gen-intro-media.mjs 가 postinstall·predev·prebuild 때 만든다
-/lib/intro/media.generated.ts

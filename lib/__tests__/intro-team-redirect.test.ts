@@ -11,22 +11,17 @@ vi.mock("@/lib/supabase/proxy", () => ({
 const { proxy } = await import("@/proxy");
 
 /**
- * `/intro` 는 서울 기강 전용 랜딩이다(2026-11-15 결정). 다른 팀 주소로 열면 그 팀 홈으로 보낸다.
+ * 크루 소개(`/join`)·회칙(`/rules`)은 본문이 기강 운영 내용이라 기강 전용이다(#658).
+ * 다른 팀 주소로 열면 그 팀 홈으로 보낸다.
  */
 describe("teamOnlyPathRedirect", () => {
-  it("기강은 /intro 를 연다", () => {
-    expect(teamOnlyPathRedirect("/intro", "gigang")).toBeNull();
-  });
-
-  it("다른 팀은 홈으로 — 끝 / 가 붙어도 같다", () => {
-    expect(teamOnlyPathRedirect("/intro", "ulsan")).toBe("/");
-    expect(teamOnlyPathRedirect("/intro/", "ulsan")).toBe("/");
-  });
-
-  // 크루 소개·회칙은 본문이 기강 운영 내용이라 기강 전용(#658)
-  it.each(["/join", "/rules", "/join/"])("%s 도 기강 전용 — 기강은 열고 다른 팀은 홈으로", (path) => {
+  it.each(["/join", "/rules", "/about"])("기강은 %s 를 연다", (path) => {
     expect(teamOnlyPathRedirect(path, "gigang")).toBeNull();
+  });
+
+  it.each(["/join", "/rules", "/about"])("다른 팀은 홈으로 — 끝 / 가 붙어도 같다 (%s)", (path) => {
     expect(teamOnlyPathRedirect(path, "ulsan")).toBe("/");
+    expect(teamOnlyPathRedirect(`${path}/`, "ulsan")).toBe("/");
   });
 
   it("전용 화면이 아니면 손대지 않는다", () => {
@@ -38,11 +33,11 @@ describe("teamOnlyPathRedirect", () => {
   });
 });
 
-function request(host: string, path = "/intro") {
+function request(host: string, path = "/join") {
   return new NextRequest(`http://${host}${path}`, { headers: { host } });
 }
 
-describe("proxy — /intro 팀 판정", () => {
+describe("proxy — 팀 전용 화면 판정", () => {
   it.each(["gigang.team", "dev.gigang.team", "localhost:3000"])("기강 주소 %s → 200", async (host) => {
     const res = await proxy(request(host));
     expect(res.status).toBe(200);
