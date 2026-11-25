@@ -29,7 +29,7 @@
 4. 안 쓰는 토큰은 같은 화면에서 **폐기**할 수 있습니다. 폐기 즉시 접속이 차단됩니다.
 
 - 토큰은 **본인 것만** 보이고 폐기할 수 있습니다.
-- 조회는 대체로 팀 멤버면 누구나. **알림 발송(`send_push`)·단톡방 공지(`send_kakao_notice`)·단톡방 참여자 대조(`list_kakao_room_members`)·멤버 참석 현황(`list_members_attendance`)은 owner/admin 역할만** 됩니다(§4 권한 경계).
+- 조회는 대체로 팀 멤버면 누구나. **알림 발송(`send_push`)·단톡방 공지(`send_kakao_notice`)·단톡방 참여자 대조(`list_kakao_room_members`)·모임 참석 신청·취소 이력(`list_gathering_attendance_history`)·멤버 참석 현황(`list_members_attendance`)은 owner/admin 역할만** 됩니다(§4 권한 경계).
 
 ---
 
@@ -80,6 +80,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `send_push` | `member_ids`(uuid[]), `title`, `message` | 지정 멤버에게 인앱+웹푸시 발송 | **admin** |
 | `send_kakao_notice` | `message`(최대 4000자), `mentions?`(이름[]), `request_id?`, `dry_run?` | 크루 카톡 단톡방에 노티봇 공지(자유 문구) — 방은 서버 설정으로 고정, 어드민 발송 이력에 남음 | **admin** |
 | `list_kakao_room_members` | — | 크루 단톡방 참여자와 사이트 활성 회원을 **이름으로 대조** — `in_room`(둘 다)·`not_in_room`(사이트엔 있고 단톡엔 없음)·`ambiguous`(동명이인)·`room_only`(단톡에만) + 목록 완전성(`known`·`total`·`synced_at`). 읽기 전용, 이름은 응답에만 실리고 로그·감사엔 건수만 | **admin** |
+| `list_gathering_attendance_history` | `gathering_id` | 모임 하나의 **현재 참석자(신청 시각)** 와 **취소 이력**(누가·취소 시각·주체·사유)을 돌려줍니다. 각 취소에 `timing`(`before_start` 시작 전 / `after_start` 시작 뒤)과 `minutes_from_start`가 붙어 **노쇼 후보**(시작 뒤 취소)를 바로 가릴 수 있습니다(#758). 읽기 전용 | **admin** |
 | `create_gathering` | `gthr_nm`, `gthr_type_enm`, `sprt_cd`, `stt_at`, `end_at?`, `loc_txt?`, `desc_txt?`, `max_prt_cnt?`, `dry_run?` | 새 모임(벙) 개설 — 작성자 자동 참석 + 팀 전원 알림 | **admin** |
 | `update_gathering` | `gathering_id`(uuid) + 바꿀 필드만(`gthr_nm`, `stt_at`, `end_at`, `loc_txt`, `max_prt_cnt`, `desc_txt`), `dry_run?`, `notify?` | 모임 수정 — 바뀐 필드 목록·전/후 반환. 알림은 `notify: true` 일 때만 | **모임 작성자 또는 admin** |
 | `create_sch_post` | `sch_nm`, `post_type`(`race_entry`·`sale`·`session`·`general`), `evt_stt_at`, `evt_end_at?`, `url?`, `cont_txt?`, `dry_run?` | 일정 탭에 소식(대회 접수 정보·판매·세션·일반) 등록 — 팀 전원 새 정보 알림 | 멤버 (앱과 같음) |
@@ -223,6 +224,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `list_gathering_non_attendees` 의 **참석 횟수·마지막 참석시각** (필드만) | 위 `list_members_attendance` 와 **같은 통계**입니다. 도구 하나만 막으면 옆 도구로 그대로 나갑니다 |
 | `send_push` (도구째) | 쓰기 — 되돌릴 수 없고 크루원에게 직접 나갑니다 |
 | `send_kakao_notice` (도구째) | 쓰기 — 되돌릴 수 없고 단톡방 크루 전원에게 보입니다 |
+| `list_gathering_attendance_history` (도구째) | 누가 언제 참석을 취소했는지는 노쇼 판단용 운영 정보입니다(#758) |
 | `list_kakao_room_members` (도구째) | 단톡방 참여자 이름은 개인정보입니다(#749). 읽기 전용이라도 admin 에게만 |
 | `create_gathering` (도구째) | 쓰기 — 만드는 순간 팀 전원에게 새 모임 알림이 나갑니다 |
 | `create_competition` (도구째) | 쓰기 — 대회는 팀 공용 데이터라 마구 만들면 목록이 오염됩니다. 앱의 서버 액션보다 좁게 둡니다 |

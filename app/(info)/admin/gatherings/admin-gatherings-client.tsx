@@ -6,6 +6,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, ChevronsUpDown, Plus, Users, X
 import { toast } from "sonner";
 
 import { currentMonthKST, dayjs, nextMonthStr, prevMonthStr } from "@/lib/dayjs";
+import { classifyCancelTiming, minutesFromStart } from "@/lib/gathering/cancel-timing";
 import { deriveCanceledAttendees } from "@/lib/gathering/derive-canceled-attendees";
 import { sortWaitlist } from "@/lib/gathering/waitlist";
 import { createClient } from "@/lib/supabase/client";
@@ -686,6 +687,12 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
                         <Body className="text-muted-foreground">
                           {c.mem_nm ?? "이름 없음"} · {dayjs(c.evt_at).tz("Asia/Seoul").format("M/D HH:mm")} 취소
                         </Body>
+                        {/* 시작 시각 이후 취소는 눈에 띄게 — 노쇼 판단용(#758). 시작 전 취소는 평범해서 말을 달지 않는다. */}
+                        {selected && classifyCancelTiming(c.evt_at, selected.stt_at) === "after_start" && (
+                          <Micro className="font-semibold text-destructive">
+                            모임 시작 {minutesFromStart(c.evt_at, selected.stt_at)}분 뒤 취소
+                          </Micro>
+                        )}
                         {c.reason_txt && <Micro>사유: {c.reason_txt}</Micro>}
                       </div>
                     </div>

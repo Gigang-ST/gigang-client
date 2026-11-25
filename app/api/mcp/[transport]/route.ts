@@ -21,6 +21,7 @@ import {
 import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
 import { updateGatheringViaMcp } from "@/lib/mcp/update-gathering";
 import { listKakaoRoomMembers } from "@/lib/mcp/list-kakao-room-members";
+import { listGatheringAttendanceHistory } from "@/lib/mcp/gathering-attendance-history";
 import {
   BALANCES_DEFAULT_LIMIT,
   INBOX_DEFAULT_LIMIT,
@@ -184,7 +185,7 @@ async function runDuesTool<T>(
  *
  * 권한: 도구 대부분은 인증된 팀 멤버면 호출할 수 있고, **앱이 관리자에게만 보여주는 것**만
  *   admin 으로 좁힌다(#496) — `send_push`·`send_kakao_notice`·`list_members_attendance`·
- *   `list_kakao_room_members`·`create_gathering` 은 도구째, `get_member_profile` 의 생년월일·성별(+ `list_recent_members` 포함 시작 정보)과 `list_gathering_non_attendees` 의 참석
+ *   `list_kakao_room_members`·`list_gathering_attendance_history`·`create_gathering` 은 도구째, `get_member_profile` 의 생년월일·성별(+ `list_recent_members` 포함 시작 정보)과 `list_gathering_non_attendees` 의 참석
  *   통계는 필드 단위로. 판정은 전부 `ctx.is_admin` 이며, 게이트는 도구 핸들러가 아니라
  *   **쿼리·발송 함수 안**에 있다(호출부가 늘어도 새지 않게).
  *
@@ -460,6 +461,24 @@ const handler = createMcpHandler(
       },
       async (_args, extra) =>
         runTool(extra, (ctx, supabase) => listKakaoRoomMembers(supabase, ctx)),
+    );
+
+    server.registerTool(
+      "list_gathering_attendance_history",
+      {
+        title: "모임 참석 신청·취소 이력",
+        description:
+          "모임 하나의 **현재 참석자(신청 시각)** 와 **취소 이력(누가·언제 취소·사유)** 을 돌려줍니다 — 노쇼 판단용입니다. " +
+          "각 취소에 timing(before_start 시작 전 / after_start 시작 뒤)과 minutes_from_start(시작 기준 분, 시작 뒤면 +)가 붙으니 " +
+          "'시작 뒤에 취소한 사람'은 timing=after_start 로 가리세요. by=admin 이면 운영진이 뺀 것입니다. " +
+          "applied_at 은 취소된 사람의 경우 이 기능이 생긴 뒤 취소분부터 있습니다(그 전은 null). 같은 사람이 여러 번 취소했으면 전부 나오고 rejoined=true 면 지금 다시 참석 중입니다. " +
+          "gathering_id 는 list_today_gatherings 등으로 확인하세요. 읽기 전용, 운영진(admin) 전용입니다.",
+        inputSchema: {
+          gathering_id: z.string().uuid("gathering_id 는 uuid 여야 합니다."),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, (ctx, supabase) => listGatheringAttendanceHistory(supabase, ctx, args)),
     );
 
     server.registerTool(
