@@ -2069,6 +2069,7 @@ export type Database = {
           gthr_id: string
           hist_id: string
           mem_id: string
+          noshow_yn: boolean
           reason_txt: string | null
           reg_at: string | null
         }
@@ -2080,6 +2081,7 @@ export type Database = {
           gthr_id: string
           hist_id?: string
           mem_id: string
+          noshow_yn?: boolean
           reason_txt?: string | null
           reg_at?: string | null
         }
@@ -2091,6 +2093,7 @@ export type Database = {
           gthr_id?: string
           hist_id?: string
           mem_id?: string
+          noshow_yn?: boolean
           reason_txt?: string | null
           reg_at?: string | null
         }

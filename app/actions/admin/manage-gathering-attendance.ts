@@ -6,6 +6,7 @@ import { after } from "next/server";
 import { withAdmin, withAdminOrThrow } from "@/lib/actions/auth";
 import { parseCancelResult } from "@/lib/gathering/cancel-result";
 import { validateCancelReason } from "@/lib/gathering/cancel-reason";
+import { applyGatheringNoshow, listMemberNoshows } from "@/lib/gathering/noshow";
 import { runPromotionFollowups } from "@/lib/gathering/promotion-followup";
 import { HOME_CALENDAR_CACHE_TAG } from "@/lib/home-calendar-cache-tag";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
@@ -171,6 +172,63 @@ export async function addGatheringAttendance(gthrId: string, memId: string) {
     });
     if (error || data !== "ok") return { ok: false, message: "참석 추가에 실패했습니다" };
     return { ok: true, message: null };
+  });
+}
+
+/**
+ * 노쇼 처리(#759) — 참석에서 빼고 **사유를 남긴다**. 사유는 필수(서버가 다시 강제한다 — 화면 검증은 안내일 뿐).
+ * 참석 취소(`removeGatheringAttendance`)와 같은 RPC 를 감싸 취소 이력에 노쇼 표시를 얹으므로, 취소 목록·승급·
+ * 캐시 무효화가 그대로 따라온다. 노쇼 당사자에게는 알림을 보내지 않는다(관리자 참석 취소와 같다).
+ */
+export async function markGatheringNoshow(gthrId: string, memId: string, reason: string) {
+  return withAdmin(async ({ member }) => {
+    const { teamId } = await getRequestTeamContext();
+    const db = createAdminClient();
+
+    const inTeam = await verifyGatheringInTeam(db, gthrId, teamId);
+    if (!inTeam) return { ok: false, message: "모임을 찾을 수 없습니다" };
+
+    const untyped = createUntypedAdminClient();
+    const result = await applyGatheringNoshow(untyped, {
+      gthrId,
+      memId,
+      teamId,
+      actorMemId: member.id,
+      reason,
+    });
+    if (!result.ok) return { ok: false, message: result.message };
+
+    bustGatheringCaches(gthrId, teamId);
+
+    if (result.promoted.length > 0 || result.notifyOpenSeat) {
+      const { data: gthrRow } = await db
+        .from("gthr_mst")
+        .select("gthr_nm")
+        .eq("gthr_id", gthrId)
+        .maybeSingle();
+      const gthrNm = gthrRow?.gthr_nm ?? "모임";
+      after(() =>
+        runPromotionFollowups(untyped, {
+          teamId,
+          gthrId,
+          gthrNm,
+          cause: "cancel",
+          promoted: result.promoted,
+          notifyOpenSeat: result.notifyOpenSeat,
+        }),
+      );
+    }
+
+    return { ok: true, message: null };
+  });
+}
+
+/** 한 회원의 누적 노쇼 횟수(관리자 화면의 노쇼 처리 모달이 "이번이 N번째"를 보여 주는 용도). */
+export async function getMemberNoshowCount(memId: string): Promise<number> {
+  return withAdminOrThrow(async () => {
+    const { teamId } = await getRequestTeamContext();
+    const rows = await listMemberNoshows(createAdminClient() as never, teamId, { memId });
+    return rows[0]?.count ?? 0;
   });
 }
 
