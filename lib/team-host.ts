@@ -107,6 +107,8 @@ export function teamManifestRedirects() {
  */
 const TEAM_ONLY_PATHS: Readonly<Record<string, string>> = {
   "/intro": "gigang",
+  // 기강 소개(#752) — 글·사진이 기강 것이다(`lib/about/content.ts`)
+  "/about": "gigang",
   "/join": "gigang",
   "/rules": "gigang",
 };

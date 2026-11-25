@@ -151,6 +151,7 @@ import { H1, H2, Body, Caption, Micro, SectionLabel } from "@/components/common/
 | `.app-fab` | 셸 오른쪽 안쪽에 붙는 떠 있는 버튼 — FAB·맨위로 |
 | `.app-rail` | 셸 **바깥** 왼쪽 지면에 서는 요소 — 폭 컨트롤 |
 | `.app-wide` | 이 페이지만 넓게(`--app-wide-max-w`, 768px). 셸 안 아무 요소에나 |
+| `.app-full` | 이 페이지만 화면 전체 폭(폭 컨트롤 레일은 숨김). 자기 안에서 폭·열을 직접 잡는 소개 페이지(`/about`)용 |
 | `[data-shell-inset]` | html에 붙는 상태 — 셸 양옆에 지면이 실제로 남는가 |
 
 #### 폭은 데스크톱에서 사용자가 고른다 (`lib/app-shell.ts`)

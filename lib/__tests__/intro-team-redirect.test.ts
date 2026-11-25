@@ -24,7 +24,7 @@ describe("teamOnlyPathRedirect", () => {
   });
 
   // 크루 소개·회칙은 본문이 기강 운영 내용이라 기강 전용(#658)
-  it.each(["/join", "/rules", "/join/"])("%s 도 기강 전용 — 기강은 열고 다른 팀은 홈으로", (path) => {
+  it.each(["/join", "/rules", "/join/", "/about", "/about/"])("%s 도 기강 전용 — 기강은 열고 다른 팀은 홈으로", (path) => {
     expect(teamOnlyPathRedirect(path, "gigang")).toBeNull();
     expect(teamOnlyPathRedirect(path, "ulsan")).toBe("/");
   });

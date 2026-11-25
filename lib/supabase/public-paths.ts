@@ -11,6 +11,8 @@ const PUBLIC_PATHS = [
   "/",
   // 인트로 — 비로그인 첫 화면. 사진은 .webp라 matcher를 안 타고, 목록은 빌드 때 코드에 박힌다.
   "/intro",
+  // 기강 소개(#752) — 비로그인도 보는 팀 소개 지면
+  "/about",
   "/rules",
   "/join",
   "/newbie",
