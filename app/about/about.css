@@ -64,17 +64,15 @@
 .ab-tl small { display: block; color: var(--ab-org); font-weight: 800; letter-spacing: 0.1em; font-size: 12px; }
 .ab-tl b { display: block; font-size: 18px; margin: 2px 0; }
 .ab-tl span { color: #bdbdbd; font-size: 15px; display: block; }
-.ab-story-photo { aspect-ratio: 16 / 9; margin-top: 28px; }
-.ab-story-photo img { object-position: center 55%; }
+.ab-story-photo { aspect-ratio: 4 / 3; margin-top: 28px; }
+.ab-story-photo img { object-position: center 45%; }
 
 /* cards */
 .ab-cards { display: grid; gap: 16px; }
 .ab-card { background: var(--ab-bg2); border: 1px solid var(--ab-line); border-radius: 14px; overflow: hidden; }
-.ab-card-vis { height: 190px; position: relative; background: #111; }
+.ab-card-vis { aspect-ratio: 4 / 3; position: relative; background: #111; }
 .ab-card-vis img.ph { object-fit: cover; }
 .ab-card-lab { position: absolute; left: 12px; top: 12px; background: var(--ab-org); color: #000; font-weight: 900; font-size: 13px; letter-spacing: 0.1em; padding: 3px 10px; border-radius: 999px; }
-.ab-card-patch { position: absolute; right: 10px; bottom: 10px; width: 84px; height: 84px; padding: 6px; background: #d2cdc4; border-radius: 12px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5); }
-.ab-card-patch img { object-fit: contain; padding: 6px; }
 .ab-card-body { padding: 20px 22px 24px; }
 .ab-card h3 { font-size: 22px; font-weight: 900; margin-bottom: 2px; }
 .ab-card .en { color: var(--ab-org); font-size: 12px; font-weight: 800; letter-spacing: 0.14em; margin-bottom: 12px; }
@@ -97,7 +95,7 @@
 .ab-ev small { color: var(--ab-org); font-weight: 800; letter-spacing: 0.12em; font-size: 12px; }
 .ab-ev h3 { font-size: 22px; font-weight: 900; margin: 4px 0 8px; }
 .ab-ev p { font-size: 15.5px; margin-bottom: 6px; }
-.ab-ev-photo { aspect-ratio: 16 / 9; margin-top: 14px; }
+.ab-ev-photo { aspect-ratio: 4 / 3; margin-top: 14px; }
 
 /* join */
 .ab-steps { counter-reset: s; list-style: none; margin: 8px 0 28px; padding: 0; }
@@ -109,6 +107,28 @@
 /* archive */
 .ab-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 20px; }
 .ab-grid .ab-photo { aspect-ratio: 1 / 1; }
+
+/* 사진 모음 — 눌러서 크게 보기 */
+.ab-grid-btn { padding: 0; border: 0; cursor: zoom-in; display: block; }
+.ab-grid-btn img { transition: transform 0.25s; }
+.ab-grid-btn:hover img { transform: scale(1.04); }
+.ab-grid-btn:focus-visible { outline: 2px solid var(--ab-org); outline-offset: 2px; }
+.ab-lb { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.92); display: flex; align-items: center; justify-content: center; touch-action: pan-y; }
+.ab-lb-fig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 100vw; padding: 0 12px; }
+.ab-lb-fig img { width: auto; height: auto; max-width: 100%; max-height: calc(100svh - 120px); object-fit: contain; border-radius: 6px; user-select: none; }
+.ab-lb-fig figcaption { color: #bbb; font-size: 13px; }
+.ab-lb-close, .ab-lb-nav { position: absolute; z-index: 1; background: rgba(255, 255, 255, 0.12); color: #fff; border: 0; border-radius: 50%; width: 44px; height: 44px; font-size: 28px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.ab-lb-close:hover, .ab-lb-nav:hover { background: rgba(255, 255, 255, 0.24); }
+.ab-lb-close { top: 12px; right: 12px; }
+.ab-lb-nav { top: 50%; transform: translateY(-50%); }
+.ab-lb-nav.prev { left: 12px; }
+.ab-lb-nav.next { right: 12px; }
+/* 폰: 스와이프가 기본이라 화살표는 작게 사진 가장자리에 얹는다 */
+@media (max-width: 759px) {
+  .ab-lb-nav { width: 36px; height: 36px; font-size: 22px; background: rgba(0, 0, 0, 0.45); }
+  .ab-lb-nav.prev { left: 6px; }
+  .ab-lb-nav.next { right: 6px; }
+}
 
 .ab-footer { padding: 48px 0 72px; border-top: 1px solid var(--ab-line); text-align: center; color: var(--ab-mute); font-size: 13px; }
 .ab-footer img { width: 44px; height: 44px; margin: 0 auto 12px; opacity: 0.8; border-radius: 50%; }
@@ -143,6 +163,7 @@
   .ab-spirit-cols { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 80px; align-items: center; }
   .ab-evs { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 40px; }
   .ab-evs .ab-ev { margin-top: 0; }
+  .ab-ev-photo { aspect-ratio: 16 / 9; }
   .ab-join { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 72px; align-items: start; }
   .ab-grid { grid-auto-rows: 260px; gap: 12px; margin-top: 40px; }
   .ab-grid .ab-photo { aspect-ratio: auto; }
