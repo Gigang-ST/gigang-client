@@ -29,7 +29,7 @@
 4. 안 쓰는 토큰은 같은 화면에서 **폐기**할 수 있습니다. 폐기 즉시 접속이 차단됩니다.
 
 - 토큰은 **본인 것만** 보이고 폐기할 수 있습니다.
-- 조회는 대체로 팀 멤버면 누구나. **알림 발송(`send_push`)·단톡방 공지(`send_kakao_notice`)·단톡방 참여자 대조(`list_kakao_room_members`)·모임 참석 신청·취소 이력(`list_gathering_attendance_history`)·멤버 참석 현황(`list_members_attendance`)은 owner/admin 역할만** 됩니다(§4 권한 경계).
+- 조회는 대체로 팀 멤버면 누구나. **알림 발송(`send_push`)·단톡방 공지(`send_kakao_notice`)·단톡방 참여자 대조(`list_kakao_room_members`)·모임 참석 신청·취소 이력(`list_gathering_attendance_history`)·노쇼 처리·이력(`mark_gathering_noshow`·`list_member_noshows`)·멤버 참석 현황(`list_members_attendance`)은 owner/admin 역할만** 됩니다(§4 권한 경계).
 
 ---
 
@@ -81,6 +81,8 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `send_kakao_notice` | `message`(최대 4000자), `mentions?`(이름[]), `request_id?`, `dry_run?` | 크루 카톡 단톡방에 노티봇 공지(자유 문구) — 방은 서버 설정으로 고정, 어드민 발송 이력에 남음 | **admin** |
 | `list_kakao_room_members` | — | 크루 단톡방 참여자와 사이트 활성 회원을 **이름으로 대조** — `in_room`(둘 다)·`not_in_room`(사이트엔 있고 단톡엔 없음)·`ambiguous`(동명이인)·`room_only`(단톡에만) + 목록 완전성(`known`·`total`·`synced_at`). 읽기 전용, 이름은 응답에만 실리고 로그·감사엔 건수만 | **admin** |
 | `list_gathering_attendance_history` | `gathering_id` | 모임 하나의 **현재 참석자(신청 시각)** 와 **취소 이력**(누가·취소 시각·주체·사유)을 돌려줍니다. 각 취소에 `timing`(`before_start` 시작 전 / `after_start` 시작 뒤)과 `minutes_from_start`가 붙어 **노쇼 후보**(시작 뒤 취소)를 바로 가릴 수 있습니다(#758). 읽기 전용 | **admin** |
+| `mark_gathering_noshow` | `gathering_id`, `member_id`/`member_name`, `reason`(필수), `dry_run`, `notify` | 노쇼 회원을 **참석에서 빼고 사유를 남깁니다**(#759). 참석 행이 지워져 출석·PB클래스 집계에서 빠지고, 처리자·시각·사유가 취소 이력에 남습니다. **먼저 `dry_run=true`** 로 대상·처리 후 노쇼 횟수를 확인하세요. 알림은 기본 없음(`notify=true` 일 때만 대기열 승급·빈 자리 알림, 당사자에겐 안 감). 시작 전 모임이면 `warnings` | **admin** |
+| `list_member_noshows` | `member_id`(선택) | 회원별 노쇼 횟수·내역(모임·처리 시각·사유·처리자), 횟수 많은 순. 읽기 전용 | **admin** |
 | `create_gathering` | `gthr_nm`, `gthr_type_enm`, `sprt_cd`, `stt_at`, `end_at?`, `loc_txt?`, `desc_txt?`, `max_prt_cnt?`, `dry_run?` | 새 모임(벙) 개설 — 작성자 자동 참석 + 팀 전원 알림 | **admin** |
 | `update_gathering` | `gathering_id`(uuid) + 바꿀 필드만(`gthr_nm`, `stt_at`, `end_at`, `loc_txt`, `max_prt_cnt`, `desc_txt`), `dry_run?`, `notify?` | 모임 수정 — 바뀐 필드 목록·전/후 반환. 알림은 `notify: true` 일 때만 | **모임 작성자 또는 admin** |
 | `create_sch_post` | `sch_nm`, `post_type`(`race_entry`·`sale`·`session`·`general`), `evt_stt_at`, `evt_end_at?`, `url?`, `cont_txt?`, `dry_run?` | 일정 탭에 소식(대회 접수 정보·판매·세션·일반) 등록 — 팀 전원 새 정보 알림 | 멤버 (앱과 같음) |
@@ -224,6 +226,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `list_gathering_non_attendees` 의 **참석 횟수·마지막 참석시각** (필드만) | 위 `list_members_attendance` 와 **같은 통계**입니다. 도구 하나만 막으면 옆 도구로 그대로 나갑니다 |
 | `send_push` (도구째) | 쓰기 — 되돌릴 수 없고 크루원에게 직접 나갑니다 |
 | `send_kakao_notice` (도구째) | 쓰기 — 되돌릴 수 없고 단톡방 크루 전원에게 보입니다 |
+| `mark_gathering_noshow`·`list_member_noshows` (도구째) | 참석을 빼는 쓰기와 회원별 노쇼 이력은 운영 판단용입니다(#759) |
 | `list_gathering_attendance_history` (도구째) | 누가 언제 참석을 취소했는지는 노쇼 판단용 운영 정보입니다(#758) |
 | `list_kakao_room_members` (도구째) | 단톡방 참여자 이름은 개인정보입니다(#749). 읽기 전용이라도 admin 에게만 |
 | `create_gathering` (도구째) | 쓰기 — 만드는 순간 팀 전원에게 새 모임 알림이 나갑니다 |
@@ -305,6 +308,16 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
   일시·장소가 바뀌었으면 단톡방 변경 공지도 요청합니다(`kakao_notice`: `requested`/`skipped`/`failed`).
 - 정원을 **늘리면** 앱처럼 대기자가 참석으로 올라갑니다(`promoted_cnt`). 승급 자체는 `notify` 와 무관하게 일어나고,
   승급 알림·빈 자리 알림만 `notify: true` 일 때 나갑니다.
+
+### 노쇼 처리(`mark_gathering_noshow`) — 참석 빼기 + 사유
+
+- 모임이 끝난 뒤 참석을 눌러 놓고 오지 않은 회원을 **참석에서 빼고 사유를 남깁니다.** 순서는
+  ① `list_gathering_attendance_history` 로 시작 뒤 취소·미취소자 가리기 → ② `mark_gathering_noshow` `dry_run: true` →
+  ③ 사용자 확인 뒤 `dry_run` 없이 실행. 사유(`reason`)는 필수입니다(예: "노쇼").
+- 참석 행(`gthr_attd_rel`)이 지워지므로 **출석·PB클래스 집계는 빠진 참석을 세지 않습니다.** 처리자·시각·사유는
+  취소 이력(`gthr_attd_hist.noshow_yn`)에 남고, `list_member_noshows` 가 회원별 횟수·내역을 돌려줍니다.
+- 알림은 기본으로 안 보냅니다. `notify: true` 일 때만 이 취소로 생긴 대기열 승급·빈 자리 알림이 나가며, 노쇼 당사자에겐 안 갑니다.
+- 앱 관리자 화면(모임 관리 → 참석자)의 「노쇼 처리」와 같은 코어(`lib/gathering/noshow.ts`)입니다.
 
 ### 일정 소식 등록(`create_sch_post`) — `create_gathering` 과 같은 약속
 
