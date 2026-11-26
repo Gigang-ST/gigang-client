@@ -19,7 +19,8 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 
-import { dayjs } from "@/lib/dayjs";
+import { dayjs, formatKST } from "@/lib/dayjs";
+import type { ReactivationRequest } from "@/lib/reactivation-request";
 import { createClient } from "@/lib/supabase/client";
 import {
   PACE_LABELS,
@@ -869,6 +870,7 @@ function StatusChangeSheet({
 export function AdminMembersClient({
   teamId,
   initialTeamMemId,
+  reactivationRequests,
   duesEnabled,
   titlesEnabled,
   runningProfileEnabled,
@@ -878,6 +880,8 @@ export function AdminMembersClient({
 }: {
   teamId: string;
   initialTeamMemId?: string;
+  /** 대기 중인 재가입·활동 재개 요청(#767) — 상단 「재가입 요청 N건」 목록 */
+  reactivationRequests: ReactivationRequest[];
   /** 이 팀이 회비를 쓰는가(팀 설정 `feature.dues`) — 안 쓰면 회비잔액 열·잔액 처리를 안 그린다 */
   duesEnabled: boolean;
   /** 이 팀이 칭호를 쓰는가(팀 설정 `feature.titles`) — 안 쓰면 멤버 상세의 칭호 수여 칸을 안 그린다 */
@@ -1041,18 +1045,26 @@ export function AdminMembersClient({
     loadMembers();
   }, [loadMembers]);
 
-  const initialSelectDone = useRef(false);
+  // 이미 연 딥링크 id — **id 가 바뀌면 다시 연다.** 예전엔 불리언 하나라 이 화면이 마운트된 채로
+  // 다른 알림(?member=다른 id)을 누르면 두 번째부터 상세가 안 열렸다(#767).
+  const handledDeepLink = useRef<string | null>(null);
   useEffect(() => {
-    if (!initialTeamMemId || loading || initialSelectDone.current) return;
+    if (!initialTeamMemId || loading || handledDeepLink.current === initialTeamMemId) return;
     const found = members.find((m) => m.team_mem_id === initialTeamMemId);
     if (found) {
       // 딥링크(?memId) 도착 시 목록 로드 완료 후 상세 시트 1회 자동 오픈 — URL 파라미터
       // 동기화 effect라 set-state-in-effect는 오탐
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedMember(found);
-      initialSelectDone.current = true;
+      handledDeepLink.current = initialTeamMemId;
     }
   }, [initialTeamMemId, loading, members]);
+
+  // 재가입 요청 — 아직 활성이 아닌 사람의 대기 요청만(방금 활성으로 바꾼 줄은 목록 새로고침 전에도 사라진다)
+  const pendingRequests = reactivationRequests.flatMap((r) => {
+    const m = members.find((x) => x.id === r.memId);
+    return m && m.status !== "active" ? [{ ...r, member: m }] : [];
+  });
 
   const filtered = members.filter((m) => {
     if (!search) return true;
@@ -1254,6 +1266,46 @@ export function AdminMembersClient({
   return (
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
       <H2>회원 관리</H2>
+
+      {pendingRequests.length > 0 && (
+        <section
+          aria-label="재가입 요청"
+          className="flex flex-col gap-2 rounded-2xl border border-warning/40 bg-warning/5 p-4"
+        >
+          <Body className="font-semibold">재가입 요청 {pendingRequests.length}건</Body>
+          <ul className="flex flex-col divide-y divide-border">
+            {pendingRequests.map((r) => (
+              <li key={r.reactvReqId} className="flex items-center gap-2 py-2">
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 flex-col items-start text-left"
+                  onClick={() => setSelectedMember(r.member)}
+                >
+                  <Caption className="truncate font-semibold text-foreground">
+                    {r.member.full_name ?? "이름 없음"}
+                    {r.reqMemStCd === "inactive" ? " · 활동 재개 문의" : ""}
+                  </Caption>
+                  <Micro>{formatKST(r.crtAt, "M.DD HH:mm")} 요청</Micro>
+                  {(r.member.status === "left" || r.member.status === "inactive") &&
+                    r.member.inact_rsn_txt && (
+                      <Micro className="max-w-full truncate">사유 · {r.member.inact_rsn_txt}</Micro>
+                    )}
+                </button>
+                <Button
+                  size="sm"
+                  disabled={isPending}
+                  onClick={() => handleSheetReactivate(r.member.id, false)}
+                >
+                  활성으로
+                </Button>
+              </li>
+            ))}
+          </ul>
+          {duesEnabled && (
+            <Micro>잔액은 그대로 두고 활성으로 바꿔요. 잔액 초기화는 회원을 열어 상태 변경에서 해요.</Micro>
+          )}
+        </section>
+      )}
 
       {loadError && (
         <div className="flex flex-col gap-3">

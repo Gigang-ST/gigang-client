@@ -16,6 +16,10 @@ import { teamLinkOrigin } from "@/lib/team-host";
 import { getRequestTeamSignup } from "@/lib/queries/team-signup";
 
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
+import { InactiveReasonNote } from "@/components/common/inactive-reason-note";
+import { ReactivationRequestButton } from "@/components/common/reactivation-request-button";
+import { Body, Caption } from "@/components/common/typography";
+import { getVisibleInactiveReason, statusReasonLabel } from "@/lib/inactive-notice";
 import { safeNextPath } from "@/lib/safe-redirect";
 
 async function OnboardingContent({
@@ -35,6 +39,26 @@ async function OnboardingContent({
 
   if (!user) {
     redirect(`/auth/login?next=${encodeURIComponent(safeNext)}`);
+  }
+
+  // 탈퇴 회원은 홈으로 보내지 않고 그 자리에서 재가입 요청을 안내한다(#571·#767).
+  // 홈으로 보내면 탭마다 차단 화면이 서 있을 뿐 "다시 들어올 수 있다"는 말이 어디에도 없다.
+  // 가입 폼을 다시 태우지 않는다 — 소속 행(team_mem_rel)이 남아 있어 운영진이 활성으로 되돌리는 길뿐이다.
+  if (member && member.status === "left" && !previewSuccess) {
+    return (
+      <div className="flex min-h-svh w-full items-center justify-center bg-background px-6">
+        <div className="flex w-full max-w-sm flex-col items-center gap-3 text-center">
+          <Body className="font-semibold">탈퇴한 상태예요</Body>
+          <Caption>다시 함께하려면 재가입을 요청해 주세요. 운영진이 확인하면 활동을 다시 시작할 수 있어요.</Caption>
+          <InactiveReasonNote
+            reason={getVisibleInactiveReason(member)}
+            label={statusReasonLabel(member.status)}
+            className="max-w-xs"
+          />
+          <ReactivationRequestButton kind="left" />
+        </div>
+      </div>
+    );
   }
 
   // 이미 가입된 회원(active/inactive 등)은 온보딩 불필요 (단, 미리보기 모드는 예외)
