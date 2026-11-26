@@ -53,6 +53,8 @@ describe("StoryLegalFooter", () => {
     expect(gigangContacts).toEqual({ operator: "이현근 (크루장)", contact: "team.gigang@gmail.com" });
     // 기강은 설정을 못 읽어도 약관과 같은 코드 기본값으로 남는다
     expect(resolveFooterContacts({ teamCd: "gigang", operator: null, contact: null })).toEqual(gigangContacts);
+    // 운영진이 「크루 운영진」을 직접 적으면 약관과 같게 푸터에도 선다 — 값이 기본 문구와 같다고 빼지 않는다(PR #747 리뷰)
+    expect(resolveFooterContacts({ teamCd: "newteam", operator: "크루 운영진", contact: null }).operator).toBe("크루 운영진");
     const none = resolveFooterContacts({ teamCd: "newteam", operator: null, contact: null });
     expect(none).toEqual({ operator: null, contact: null });
     const html = renderToStaticMarkup(createElement(StoryLegalFooter, { copy: ULSAN_COPY, contacts: none }));
