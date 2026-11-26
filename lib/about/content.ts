@@ -34,12 +34,12 @@ export const ABOUT_PHOTO_CONSENT = "동의 확인 필요";
  */
 export const PENDING_REGULAR_RUN = {
   schedule: "격주 수요일 저녁 7시 30분.",
-  groups: "고수·중수·초보 조로 나눠 인터벌을 합니다.",
+  groups: "고수·중수·초보 조로 나눠 인터벌을 뜁니다.",
 } as const;
 
 export const PENDING_TIMELINE = [
-  { when: "2024.04", title: "양재천에서 시작", text: "같이 뛸 사람 몇 명으로 출발했습니다." },
-  { when: "2024 ~ 2025", title: "정기런이 자리 잡다", text: "격주 수요일 저녁, 수준별 조로 나눠 뜁니다." },
+  { when: "2024.04", title: "양재천에서 시작", text: "같이 뛸 사람 몇 명이 모인 게 시작이었습니다." },
+  { when: "2024 ~ 2025", title: "정기런이 생기다", text: "격주 수요일 저녁, 수준별 조로 나눠 뜁니다." },
   { when: "2026", title: "종목이 늘다", text: "하이록스, 트레일, 동계 훈련 PB클래스. 종목마다 팀이 생겼습니다." },
   { when: "지금", title: "스포츠팀 기강", text: "활동 지역은 양재천, 강남, 교대, 대치유수지, 한강." },
 ] as const;
@@ -58,19 +58,19 @@ export const ABOUT_HERO = {
   titleEm: "스포츠팀",
   titleEnd: "입니다.",
   lead: "러닝도, 하이록스도, 트레일도.",
-  leadSub: "종목마다 같이 뛰고, 같이 합니다.",
+  leadSub: "종목은 달라도 같이 합니다.",
   photoAlt: "정기런 단체",
   ticker: ["RUNNING", "HYROX", "TRAIL", "PB CLASS", "NO TIME TO BE WEAK"],
 } as const;
 
 export const ABOUT_STORY = {
   tag: "01 STORY",
-  title: ["혼자 뛰면 쉬운 날이", "같이 뛰면 안 쉬어집니다."],
+  title: ["혼자 하면 쉬게 되고,", "같이 하면 뛰게 됩니다."],
   paragraphs: [
     ["기강은 2024년 4월 23일에 시작했습니다.", "양재천에서 같이 뛸 사람을 모으는 것으로요."],
-    ["지금은 달리기에서 하이록스, 트레일까지 왔습니다.", "같이 훈련하고, 같이 대회에 나갑니다."],
+    ["지금은 하이록스, 트레일도 합니다.", "같이 훈련하고, 같이 대회에 나갑니다."],
   ],
-  strong: ["러닝클럽이 아니라 스포츠팀입니다.", "종목이 늘어도 하는 사람의 기세는 같습니다."],
+  strong: ["러닝클럽이 아니라 스포츠팀입니다.", "종목이 늘어도 기세는 그대로입니다."],
   photoAlt: "기강 단체 사진",
 } as const;
 
@@ -91,8 +91,8 @@ export type AboutCard = {
 
 export const ABOUT_WHAT = {
   tag: "02 WHAT WE DO",
-  title: ["종목마다", "그 운동 하는 사람이 됩니다."],
-  lead: ["같은 팀 안에 종목이 여럿 있습니다.", "하고 싶은 것부터 오면 됩니다."],
+  title: ["종목은 여럿,", "팀은 하나."],
+  lead: ["한 팀에 종목이 여럿 있습니다.", "하고 싶은 것부터 오면 됩니다."],
   cards: [
     {
       key: "run",
@@ -152,14 +152,14 @@ export const ABOUT_SPIRIT = {
   quotes: ["우는 소리 안 하고.", "도전하고.", "하기로 했으면 열심히."],
   paragraphs: [
     ["에너지 넘치고, 약한 소리 안 하는 기세.", "이게 기강정신입니다."],
-    ["기강정신이 빠진 사람에겐 장난스럽게 긁습니다.", "긁힌 사람은 그 자극으로 이겨냅니다.", "거기까지가 기강입니다."],
+    ["기강정신이 빠진 사람에겐 장난스럽게 긁습니다.", "긁힌 사람은 오기로 이겨냅니다.", "거기까지가 기강입니다."],
   ],
 } as const;
 
 export const ABOUT_EVENTS = {
   tag: "04 SIGNATURE",
   title: "기강이 모이는 날들",
-  lead: "평소엔 일정으로 만나고, 크게 모이는 날이 있습니다.",
+  lead: "평소엔 일정으로 만나고, 가끔 크게 모입니다.",
   items: [
     {
       kicker: "YEAR-END",
@@ -171,7 +171,7 @@ export const ABOUT_EVENTS = {
     {
       kicker: "PROJECT",
       name: "PB클래스 · 동계 훈련",
-      body: ["수요일 저녁 같이 뛰고, 12주 뒤 10K 기록으로 확인합니다."],
+      body: ["수요일 저녁에 같이 뛰고, 12주 뒤 10K 기록을 잽니다."],
       photo: ABOUT_PHOTO.pbTrain,
       photoAlt: "야간 트랙 훈련",
     },
@@ -180,7 +180,7 @@ export const ABOUT_EVENTS = {
 
 export const ABOUT_JOIN = {
   tag: "05 JOIN",
-  title: "오는 방법은 간단합니다.",
+  title: "오는 길은 세 단계입니다.",
   steps: [
     { main: "사이트에서 가입", sub: "gigang.team · 카카오 또는 구글 계정" },
     { main: "일정에서 모임 골라 참석 누르기", sub: "정기런부터 오면 가장 쉽습니다." },
@@ -195,7 +195,7 @@ export const ABOUT_JOIN = {
 export const ABOUT_ARCHIVE = {
   tag: "06 VISUAL ARCHIVE",
   title: "기강의 장면들",
-  lead: "우리가 모인 날의 사진입니다.",
+  lead: "모인 날마다 찍은 사진들입니다.",
   photos: [
     { src: ABOUT_PHOTO.a1, alt: "정기런 출발 단체샷" },
     { src: ABOUT_PHOTO.a2, alt: "인터벌 달리는 모습" },
@@ -215,5 +215,5 @@ export const ABOUT_FOOTER = {
 
 export const ABOUT_META = {
   title: "기강 소개 — No time to be weak",
-  description: "기강은 스포츠팀입니다. 러닝·하이록스·트레일·PB클래스를 같이 훈련하고 같이 대회에 나가는 서울 기반 팀 소개.",
+  description: "기강은 스포츠팀입니다. 러닝·하이록스·트레일·PB클래스를 같이 훈련하고 대회에도 같이 나가는 서울 팀을 소개합니다.",
 } as const;
