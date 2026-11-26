@@ -94,6 +94,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `get_dues_balances` | `status?`(`미납`·`정상`·`예치`), `limit?` | 활성 회원 회비 잔액(예치/미납) 현황 + 인원·합계 | **admin** · 회비 사용 팀 |
 | `issue_coupons` | `items`(`mem_id`·`type`·`text`·`amount?`·`exp_dt?`), `dry_run?` | 쿠폰(싱글렛 할인·대회 참가지원·프로젝트 참가비 할인·기타)을 회원별로 기록 — 장부일 뿐 자동 차감 없음 | **admin** · 회비 사용 팀 |
 | `list_coupons` | `mem_id?`(admin), `status?`(`active`·`used`·`expired`) | 쿠폰 목록 — admin 은 팀 전체, 일반 회원은 내 쿠폰만 | 인증 멤버 · 회비 사용 팀 |
+| `list_member_workouts` | `member_id`(uuid) 또는 `name`, `from?`·`to?`(YYYY-MM-DD), `limit?`(기본 30, 최대 100) | intervals.icu 를 연결한 회원의 최근 운동 **요약**(날짜·종목·거리·시간·페이스). 연결 안 한 회원은 `connected: false` — 심박·경로 상세와 API 키는 저장·반환하지 않음(#760) | **admin** |
 
 ### 대회 도구 (#700)
 
@@ -234,6 +235,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `register_competition` 의 **`member_id`·`member_name`**(남을 대신 신청만) | 앱에서 남의 참가 신청을 넣는 화면은 없고(관리자 화면은 목록·삭제), 본인 신청은 멤버 누구나 합니다 |
 | 회비 도구 6종 `upload_dues_xlsx`·`list_dues_inbox`·`confirm_dues_txns`·`cancel_dues_txn`·`reclassify_dues_txn`·`get_dues_balances` (도구째) | 회비 거래·잔액은 앱에서도 관리자에게만 보이고, 확정은 개인 잔액을 바꿉니다. 회비 기능이 꺼진 팀(`feature.dues=false`)은 admin 이어도 거부 |
 | 쿠폰 발급 `issue_coupons` (도구째) | 쿠폰 발급은 운영진 업무입니다(앱 「회비 > 쿠폰」과 같은 경계). `list_coupons` 는 admin 이 아니면 인자와 무관하게 **내 쿠폰만** 돌려줍니다 |
+| `list_member_workouts` (도구째) | 회원이 intervals.icu 를 연결하며 「운영진은 날짜·종목·거리·시간·페이스 요약만 본다」에 동의한 범위입니다(연결 화면에 문구 명시). 일반 회원 도구엔 열지 않습니다 — 남의 운동 기록이라서 |
 | `log_hyrox_record` 의 **`member_id`**(남의 기록 등록만) | 앱에서 남의 대회 기록을 넣는 건 관리자 「대신 등록」뿐입니다. 본인 기록은 멤버 누구나 넣습니다 |
 
 `update_gathering` 은 admin 전용이 아니라 **작성자 또는 admin** 입니다(앱의 수정 권한과 같습니다).

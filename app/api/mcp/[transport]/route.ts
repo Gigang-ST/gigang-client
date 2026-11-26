@@ -198,6 +198,7 @@ async function runDuesTool<T>(
  *   - **회비 도구 6종**(#702 — `upload_dues_xlsx`·`list_dues_inbox`·`confirm_dues_txns`·`cancel_dues_txn`·
  *     `reclassify_dues_txn`·`get_dues_balances`) — 전부 admin 전용 + 회비 기능이 켜진 팀만(`runDuesTool`).
  *   - **쿠폰 도구 2종**(#712 — `issue_coupons` admin 전용 · `list_coupons` admin 전체/회원 본인 것만) — 회비 기능이 켜진 팀만(`runDuesTool`).
+ *   - **회원 운동 요약 1종**(#760 — `list_member_workouts`, admin 전용) — 회원이 intervals.icu 를 연결해 동의한 요약(날짜·종목·거리·시간·페이스)만. 키·심박·경로는 저장하지 않는다.
  *   - **내 것**(마일리지런 개인 도구 7종, #497) — 대상 멤버를 인자로 받지 않고 `ctx.mem_id` 로만
  *     스코프한다. admin 이어도 남의 기록에는 손대지 못한다.
  */
