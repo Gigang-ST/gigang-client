@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildPbRows,
+  forTeamRunningProfile,
+  getMemberIntro,
+  getRunningProfileRows,
   getRecordCodeLabel,
   getRunningProfileSlots,
   hasPaceTrend,
@@ -179,5 +182,22 @@ describe("buildPbRows · showsPaceTrend — 팀의 기록 종목(랭킹탭과 �
 
   it("세울 칸이 하나도 없을 수 있다(하이록스만) — 카드가 섹션째 뺀다", () => {
     expect(buildPbRows([road("FULL", 13331)], 500, ["hyrox"])).toEqual([]);
+  });
+});
+
+describe("forTeamRunningProfile — 러닝 프로필을 끈 팀", () => {
+  const profile = { avg_pace_cd: "P600", avg_run_dist_km: 8, near_stn_nm: "합정", join_purp_cds: ["MT_MATE"], join_purp_txt: null };
+
+  it("끈 팀은 역·페이스·거리를 비우고 가입 목적은 남긴다 — 줄·행이 저절로 빈다", () => {
+    const off = forTeamRunningProfile(profile, false);
+    expect(off).toMatchObject({ avg_pace_cd: null, avg_run_dist_km: null, near_stn_nm: null, join_purp_cds: ["MT_MATE"] });
+    expect(getRunningProfileRows(off)).toEqual([]);
+    expect(getMemberIntro(off)?.rows).toEqual([]);
+    expect(getMemberIntro(off)?.purposes.map((p) => p.short)).toEqual(["산 메이트"]);
+  });
+
+  it("켠 팀은 그대로", () => {
+    expect(forTeamRunningProfile(profile, true)).toBe(profile);
+    expect(forTeamRunningProfile(null, false)).toBeNull();
   });
 });

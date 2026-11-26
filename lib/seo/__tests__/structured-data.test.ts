@@ -42,7 +42,7 @@ describe("buildOrganizationJsonLd", () => {
     });
   });
 
-  it("모보브는 자기 이름·주소·채널 — 채널이 없으면 sameAs 를 안 싣는다", () => {
+  it("모비는 자기 이름·주소·채널 — 채널이 없으면 sameAs 를 안 싣는다", () => {
     const site = TEAM_SITE.ulsan;
     const ld = buildOrganizationJsonLd({
       organization: site.organization!,
@@ -52,7 +52,7 @@ describe("buildOrganizationJsonLd", () => {
       logo: site.logo,
       image: site.ogImage?.path,
     });
-    expect(ld).toMatchObject({ name: "모보브 트레일러닝 크루", url: "https://ulsan.gigang.team", logo: "https://ulsan.gigang.team/teams/ulsan/logo.png" });
+    expect(ld).toMatchObject({ name: "모비 트레일러닝 크루", url: "https://ulsan.gigang.team", logo: "https://ulsan.gigang.team/teams/ulsan/logo.png" });
     expect(ld).not.toHaveProperty("sameAs");
     expect(ld).not.toHaveProperty("description");
     expect(JSON.stringify(ld)).not.toMatch(/기강|gigang\.team\/(?!teams\/ulsan)/);

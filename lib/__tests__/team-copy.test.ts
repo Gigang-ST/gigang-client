@@ -10,7 +10,7 @@ import {
 } from "@/lib/team-copy";
 
 const gigang = buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: "기강인", wordmark: "GIGANG" });
-const movof = buildTeamCopy({ teamCd: "ulsan", crewName: "모보브", memberNoun: null });
+const mobby = buildTeamCopy({ teamCd: "ulsan", crewName: "모비", memberNoun: null });
 const blank = buildTeamCopy({ teamCd: "newteam", crewName: null, memberNoun: null });
 
 describe("buildTeamCopy — 기강은 2026-11-10 이전 화면 문구와 한 글자도 다르지 않다", () => {
@@ -66,25 +66,25 @@ describe("buildTeamCopy — 기강은 2026-11-10 이전 화면 문구와 한 글
 });
 
 describe("buildTeamCopy — 다른 팀", () => {
-  it("모보브: 이름으로 만든 기능 이름, 호칭이 없으면 크루원, 사진 지면은 갤러리", () => {
-    expect(movof).toMatchObject({
-      crewName: "모보브",
+  it("모비: 이름으로 만든 기능 이름, 호칭이 없으면 크루원, 사진 지면은 갤러리", () => {
+    expect(mobby).toMatchObject({
+      crewName: "모비",
       memberNoun: "크루원",
-      hallName: "모보브의 전당",
-      storyName: "모보브이야기",
+      hallName: "모비의 전당",
+      storyName: "모비이야기",
       galleryName: "갤러리",
       galleryLabel: "Gallery",
-      orgName: "모보브",
+      orgName: "모비",
     });
   });
 
   it("말장난은 중립 문구로 — 「기강」이 한 글자도 안 남는다", () => {
-    expect(movof.pushPromptTitle).toBe("🔔 알림을 켜 두세요");
-    expect(movof.actvKicker).toBe("이번 달 가장 뜨거운");
-    expect(movof.actvHeadlines).toHaveLength(13);
-    expect(movof.actvHeadlines).toContain("{name}, 이번 달 모보브의 기준");
-    expect(movof.quips).toHaveLength(11);
-    expect(JSON.stringify(movof)).not.toContain("기강");
+    expect(mobby.pushPromptTitle).toBe("🔔 알림을 켜 두세요");
+    expect(mobby.actvKicker).toBe("이번 달 가장 뜨거운");
+    expect(mobby.actvHeadlines).toHaveLength(13);
+    expect(mobby.actvHeadlines).toContain("{name}, 이번 달 모비의 기준");
+    expect(mobby.quips).toHaveLength(11);
+    expect(JSON.stringify(mobby)).not.toContain("기강");
   });
 
   it("아무것도 안 정한 새 팀은 중립어 — 크루·크루원", () => {
@@ -112,8 +112,14 @@ describe("buildTeamCopy — 팀 설정을 못 읽거나 비어도 이름과 말�
     expect(renamed).toMatchObject({ crewName: "기강 크루", memberNoun: "기강러", hallName: "기강 크루의 전당" });
   });
 
-  it("말투 표에 없는 팀은 설정을 못 읽으면 중립어 + 중립 말투 — 역시 섞이지 않는다", () => {
+  it("울산은 설정을 못 읽어도 팀 기본 이름(모비·MOBBY) + 중립 말투", () => {
     const failed = buildTeamCopy({ teamCd: "ulsan", crewName: null, memberNoun: null });
+    expect(failed).toMatchObject({ crewName: "모비", memberNoun: "크루원", wordmark: "MOBBY", galleryName: "갤러리" });
+    expect(JSON.stringify(failed)).not.toContain("기강");
+  });
+
+  it("말투 표에 없는 팀은 설정을 못 읽으면 중립어 + 중립 말투 — 역시 섞이지 않는다", () => {
+    const failed = buildTeamCopy({ teamCd: "newteam", crewName: null, memberNoun: null });
     expect(failed).toMatchObject({ crewName: "크루", memberNoun: "크루원", galleryName: "갤러리" });
     expect(JSON.stringify(failed)).not.toContain("기강");
   });
@@ -136,11 +142,11 @@ describe("pageDescription — 지면 검색 설명", () => {
 
   it("다른 팀은 모든 지면이 그 팀 이름의 중립 문장 — 「기강」·기강 지역·종목이 안 남는다", () => {
     for (const key of PAGE_KEYS) {
-      const d = pageDescription(key, "ulsan", "모보브");
-      expect(d).toContain("모보브");
+      const d = pageDescription(key, "ulsan", "모비");
+      expect(d).toContain("모비");
       expect(d).not.toMatch(/기강|양재천|강남/);
     }
-    expect(pageDescription("races", "ulsan", "모보브")).toMatch(/^모보브가 /); // 조사
+    expect(pageDescription("races", "ulsan", "모비")).toMatch(/^모비가 /); // 조사
   });
 });
 
@@ -156,9 +162,25 @@ describe("pickTeamCopy — 화면별로 필요한 칸만 넘긴다", () => {
 describe("withCrewPhrase — 「{이름} 크루와」 (#658)", () => {
   it("이름 뒤에 「크루와」, 이름이 이미 「크루」로 끝나면 조사만", () => {
     expect(withCrewPhrase("기강")).toBe("기강 크루와");
-    expect(withCrewPhrase("모보브")).toBe("모보브 크루와");
+    expect(withCrewPhrase("모비")).toBe("모비 크루와");
     expect(withCrewPhrase("크루")).toBe("크루와");
-    expect(withCrewPhrase("모보브 크루")).toBe("모보브 크루와");
+    expect(withCrewPhrase("모비 크루")).toBe("모비 크루와");
     expect(withCrewPhrase("  ")).toBe("크루와");
+  });
+});
+
+describe("팀 설정을 따라가는 값(PR #745 리뷰)", () => {
+  it("지면 검색 설명은 설정된 크루 이름을 따른다 — 이름이 그대로면 예전 문장 그대로", () => {
+    expect(pageDescription("schedule", "ulsan", "모비")).toBe(
+      "울산 트레일러닝 크루 모비의 다가오는 산행·트레일러닝 모임과 참가 대회 일정.",
+    );
+    expect(pageDescription("schedule", "ulsan", "새이름")).toContain("크루 새이름의");
+    expect(pageDescription("races", "ulsan", "새이름")).toMatch(/^새이름이 /);
+    expect(pageDescription("board", "gigang", "기강")).toBe("기강 러닝크루 공지사항과 업데이트 소식.");
+  });
+
+  it("러닝 프로필 사용은 팀 설정을 따르고, 못 읽었거나 비면 켬(지금 기강 동작)", () => {
+    expect(buildTeamCopy({ teamCd: "ulsan", crewName: "모비", memberNoun: null, runningProfile: false }).runningProfile).toBe(false);
+    expect(buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: null }).runningProfile).toBe(true);
   });
 });

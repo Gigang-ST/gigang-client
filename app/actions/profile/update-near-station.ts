@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { withMember } from "@/lib/actions/auth";
+import { getRequestTeamSignup } from "@/lib/queries/team-signup";
+import { hasRunningProfileStep } from "@/lib/team-signup";
 import { nearStationEditSchema, type NearStationEditValues } from "@/lib/validations/member";
 import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
@@ -27,6 +29,10 @@ export async function updateNearStation(
   }
 
   return withMember(async ({ member }) => {
+    // 러닝 프로필을 안 쓰는 팀(팀 설정 feature.running_profile 끔 — 모비)은 받지 않는다 — 화면엔 칸이 없지만 액션은 직접 부를 수 있다
+    if (!hasRunningProfileStep(await getRequestTeamSignup())) {
+      return { ok: false, message: "이 크루에서는 러닝 프로필을 쓰지 않아요." };
+    }
     const admin = createUntypedAdminClient();
 
     const { error } = await admin.from("mem_onbd_prf").upsert(

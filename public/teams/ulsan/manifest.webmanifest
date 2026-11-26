@@ -1,7 +1,7 @@
 {
-  "name": "모보브",
-  "short_name": "모보브",
-  "description": "울산에서 함께 산을 달리는 트레일러닝 크루 모보브(MOVOF).",
+  "name": "모비",
+  "short_name": "모비",
+  "description": "울산에서 함께 산을 달리는 트레일러닝 크루 모비(MOBBY). hobby is mountain.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

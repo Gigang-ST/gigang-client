@@ -149,7 +149,7 @@ export function CollectionSheet({
   currentFrameCd: string | null;
   maxRarityLevel: number;
   memberName: string;
-  /** 칭호를 안 고른 미리보기에 찍는 팀 글자(GIGANG·MOVOF — 팀 설정 워드마크, §lib/team-copy) */
+  /** 칭호를 안 고른 미리보기에 찍는 팀 글자(GIGANG·MOBBY — 팀 설정 워드마크, §lib/team-copy) */
   wordmark: string;
 }) {
   const [tab, setTab] = useState<Tab>("title");

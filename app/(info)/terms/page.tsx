@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/** 본문은 팀별(`lib/legal-docs.ts`) — 울산 주소엔 모보브·운영 주체 기준 문서가 선다(#658) */
+/** 본문은 팀별(`lib/legal-docs.ts`) — 울산 주소엔 모비·운영 주체 기준 문서가 선다(#658) */
 export default async function TermsPage() {
   return <LegalDocView doc={await getTeamLegalDoc("terms")} />;
 }

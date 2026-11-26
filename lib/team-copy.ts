@@ -1,11 +1,11 @@
-import { josa } from "@/lib/josa";
+import { josa, type JosaPair } from "@/lib/josa";
 import type { MoodLevel } from "@/lib/mood-scale";
 
 /**
  * 팀 문구 — 화면 곳곳의 크루 이름·호칭·기능 이름·말투를 **팀 기준으로** 만든다. 순수 함수라 서버·클라이언트 둘 다 쓴다.
  * 서버에서 지금 요청의 팀 문구를 꺼내는 건 `lib/queries/team-copy.ts`(`getTeamCopy`), 회귀 테스트 `lib/__tests__/team-copy.test.ts`.
  *
- * 2026-11-10 전에는 화면에 「기강」이 박혀 있어 울산(모보브) 화면에도 「기강에 합류」「기강인만 볼 수 있어요」가 떴다.
+ * 2026-11-10 전에는 화면에 「기강」이 박혀 있어 울산(모비) 화면에도 「기강에 합류」「기강인만 볼 수 있어요」가 떴다.
  *
  * ## 세 갈래 (유저 결정 2026-11-10)
  * 1. **크루 이름·호칭 = 팀 설정** — `brand.name`(크루 이름) · `brand.member_noun`(회원 호칭). 운영진이 화면에서 바꾼다.
@@ -17,7 +17,7 @@ import type { MoodLevel } from "@/lib/mood-scale";
  *    **팀 설정에 두지 않는 이유**: 글자 수 제한이 있는 자리(리드 18자 근처·헤더 224px)라 아무나 바꾸면 화면이 깨지고,
  *    한 번 다듬으면 거의 안 바뀐다. 새 팀이 자기 말투를 원하면 개발자가 이 표에 한 줄 더한다.
  *
- * 조사는 이름 받침에 따라 갈린다(「기강은」/「모보브는」) — 문구를 만들 때 `josa()`(`lib/josa.ts`)를 쓴다.
+ * 조사는 이름 받침에 따라 갈린다(「기강은」/「모비는」) — 문구를 만들 때 `josa()`(`lib/josa.ts`)를 쓴다.
  */
 
 /** 중립 크루 이름 — 팀 설정에 크루 이름이 없을 때 */
@@ -64,6 +64,11 @@ type TeamVoice = {
   extraQuips?: string[];
   /** 지면 검색 설명(`<meta name="description">`) — 그 팀이 다듬은 문장. 없는 지면은 크루 이름으로 만든 중립 문장 */
   pageDescriptions?: Partial<Record<PageDescriptionKey, string>>;
+  /**
+   * 홈 푸터 서비스 소개(`serviceIntro`)의 모임 종류 — 「{이름}는 **러닝** 모임과 대회·기록을…」. 없으면 종류 없이 「모임과」
+   * (모르는 종목을 지어내지 않는다). 팀 설정 「모임 기본 종목」에서 뽑지 않는 건, 그건 모임 만들기의 첫 선택값이라 뜻이 달라서다.
+   */
+  gatheringKind?: string;
 };
 
 const NEUTRAL_VOICE = {
@@ -75,7 +80,7 @@ const NEUTRAL_VOICE = {
   moodLabels: { blazing: "불타는 중", steady: "꾸준히", resting: "스며드는 중", dormant: "실종" },
   cardMood: { blazing: "내가 곧 기준", steady: "슬슬 시동 거는 중", resting: "관심이 생기는 정도" },
 } as const satisfies Required<
-  Omit<TeamVoice, "extraHeadlines" | "extraQuips" | "orgName" | "crewName" | "memberNoun" | "wordmark" | "pageDescriptions">
+  Omit<TeamVoice, "extraHeadlines" | "extraQuips" | "orgName" | "crewName" | "memberNoun" | "wordmark" | "pageDescriptions" | "gatheringKind">
 >;
 
 /**
@@ -101,18 +106,36 @@ const TEAM_VOICE: Readonly<Record<string, TeamVoice>> = {
     extraQuips: ["기강 잡으러 나갔다가 기강 잡혔다"],
     // 검색에 걸리게 「러닝크루」·지역·종목을 넣어 다듬은 문장(2026-09 네이버 대응) — 2026-11-11 이전 그대로
     pageDescriptions: {
-      board: "기강 러닝크루 공지사항과 업데이트 소식.",
-      join: "기강 러닝크루 가입 신청. 양재천·강남 정기 모임 장소와 시간, 크루 규칙, 문의 방법을 확인하고 신청하세요.",
-      newbie: "기강 러닝크루에 처음 오시는 분을 위한 안내. 가입 절차, 러닝 등급, 안전수칙, 회비를 한 장에 정리했습니다.",
-      rules: "기강 러닝크루 회칙 — 함께 달리기 위해 지키는 활동 원칙.",
-      terms: "기강 러닝크루 서비스 이용약관.",
-      privacy: "기강 러닝크루 개인정보처리방침 — 수집 항목, 이용 목적, 보관 기간.",
-      policy: "기강 러닝크루 운영정책 — 안전수칙과 모임 운영 기준.",
-      schedule: "기강 러닝크루의 다가오는 러닝·자전거·수영 모임과 참가 대회 일정.",
-      races: "기강 러닝크루가 함께 나가는 마라톤·대회 일정과 크루원 참가 현황.",
-      records: "기강 러닝크루 종목별 최고 기록. 5K·10K·하프·풀코스 크루원 기록을 모았습니다.",
-      projects: "기강 러닝크루의 마일리지런·PB 클래스 등 기간제 활동. 크루원 로그인이 필요합니다.",
-      recap: "기강 마일리지런 시즌을 재미로 돌아보는 지면. 크루원 로그인이 필요합니다.",
+      board: "{crew} 러닝크루 공지사항과 업데이트 소식.",
+      join: "{crew} 러닝크루 가입 신청. 양재천·강남 정기 모임 장소와 시간, 크루 규칙, 문의 방법을 확인하고 신청하세요.",
+      newbie: "{crew} 러닝크루에 처음 오시는 분을 위한 안내. 가입 절차, 러닝 등급, 안전수칙, 회비를 한 장에 정리했습니다.",
+      rules: "{crew} 러닝크루 회칙 — 함께 달리기 위해 지키는 활동 원칙.",
+      terms: "{crew} 러닝크루 서비스 이용약관.",
+      privacy: "{crew} 러닝크루 개인정보처리방침 — 수집 항목, 이용 목적, 보관 기간.",
+      policy: "{crew} 러닝크루 운영정책 — 안전수칙과 모임 운영 기준.",
+      schedule: "{crew} 러닝크루의 다가오는 러닝·자전거·수영 모임과 참가 대회 일정.",
+      races: "{crew} 러닝크루가 함께 나가는 마라톤·대회 일정과 크루원 참가 현황.",
+      records: "{crew} 러닝크루 종목별 최고 기록. 5K·10K·하프·풀코스 크루원 기록을 모았습니다.",
+      projects: "{crew} 러닝크루의 마일리지런·PB 클래스 등 기간제 활동. 크루원 로그인이 필요합니다.",
+      recap: "{crew} 마일리지런 시즌을 재미로 돌아보는 지면. 크루원 로그인이 필요합니다.",
+    },
+  },
+  // 울산 트레일러닝 크루 — 이름 모비(「mob by」 우리들의 느낌으로, 2026-11-23 확정). 말장난은 없다(중립 문구).
+  ulsan: {
+    crewName: "모비",
+    wordmark: "MOBBY",
+    // 홈 푸터 소개 「모비는 트레일러닝·산행 모임과…」(#746 이 이 칸을 읽는다)
+    gatheringKind: "트레일러닝·산행",
+    // 검색에 걸리게 지역·종목을 넣는다. 크루 소개·회칙(`/join`·`/rules`)은 기강 전용 지면이라 없다(§lib/team-host TEAM_ONLY_PATHS)
+    pageDescriptions: {
+      board: "울산 트레일러닝 크루 {crew} 공지사항과 업데이트 소식.",
+      newbie: "울산 트레일러닝 크루 {crew}에 처음 오시는 분을 위한 가입 안내.",
+      terms: "울산 트레일러닝 크루 {crew} 서비스 이용약관.",
+      privacy: "울산 트레일러닝 크루 {crew} 개인정보처리방침 — 수집 항목, 이용 목적, 보관 기간.",
+      policy: "울산 트레일러닝 크루 {crew} 운영정책 — 안전수칙과 모임 운영 기준.",
+      schedule: "울산 트레일러닝 크루 {crew}의 다가오는 산행·트레일러닝 모임과 참가 대회 일정.",
+      races: "{crew:이/가} 함께 나가는 트레일러닝 대회 일정과 크루원 참가 현황.",
+      records: "울산 트레일러닝 크루 {crew}의 UTMB INDEX 기록. 크루원 트레일러닝 지수를 모았습니다.",
     },
   },
 };
@@ -125,24 +148,33 @@ export type PageDescriptionKey =
   | "board" | "join" | "newbie" | "rules" | "terms" | "privacy" | "policy"
   | "schedule" | "races" | "records" | "projects" | "recap";
 
-const NEUTRAL_PAGE_DESCRIPTIONS: Record<PageDescriptionKey, (crew: string) => string> = {
-  board: (c) => `${c} 공지사항과 업데이트 소식.`,
-  join: (c) => `${c} 가입 신청. 모임 장소와 시간, 크루 규칙, 문의 방법을 확인하고 신청하세요.`,
-  newbie: (c) => `${c}에 처음 오시는 분을 위한 안내. 가입 절차, 안전수칙, 회비를 한 장에 정리했습니다.`,
-  rules: (c) => `${c} 회칙 — 함께 달리기 위해 지키는 활동 원칙.`,
-  terms: (c) => `${c} 서비스 이용약관.`,
-  privacy: (c) => `${c} 개인정보처리방침 — 수집 항목, 이용 목적, 보관 기간.`,
-  policy: (c) => `${c} 운영정책 — 안전수칙과 모임 운영 기준.`,
-  schedule: (c) => `${c}의 다가오는 모임과 참가 대회 일정.`,
-  races: (c) => `${josa(c, "이/가")} 함께 나가는 대회 일정과 크루원 참가 현황.`,
-  records: (c) => `${c} 종목별 최고 기록. 크루원 기록을 모았습니다.`,
-  projects: (c) => `${c}의 기간제 활동(프로젝트). 크루원 로그인이 필요합니다.`,
-  recap: (c) => `${c} 프로젝트 시즌을 재미로 돌아보는 지면. 크루원 로그인이 필요합니다.`,
+const NEUTRAL_PAGE_DESCRIPTIONS: Record<PageDescriptionKey, string> = {
+  board: "{crew} 공지사항과 업데이트 소식.",
+  join: "{crew} 가입 신청. 모임 장소와 시간, 크루 규칙, 문의 방법을 확인하고 신청하세요.",
+  newbie: "{crew}에 처음 오시는 분을 위한 안내. 가입 절차, 안전수칙, 회비를 한 장에 정리했습니다.",
+  rules: "{crew} 회칙 — 함께 달리기 위해 지키는 활동 원칙.",
+  terms: "{crew} 서비스 이용약관.",
+  privacy: "{crew} 개인정보처리방침 — 수집 항목, 이용 목적, 보관 기간.",
+  policy: "{crew} 운영정책 — 안전수칙과 모임 운영 기준.",
+  schedule: "{crew}의 다가오는 모임과 참가 대회 일정.",
+  races: "{crew:이/가} 함께 나가는 대회 일정과 크루원 참가 현황.",
+  records: "{crew} 종목별 최고 기록. 크루원 기록을 모았습니다.",
+  projects: "{crew}의 기간제 활동(프로젝트). 크루원 로그인이 필요합니다.",
+  recap: "{crew} 프로젝트 시즌을 재미로 돌아보는 지면. 크루원 로그인이 필요합니다.",
 };
 
-/** 지면 검색 설명 — 팀 코드 + 그 팀 크루 이름(`TeamCopy.crewName`) */
+/**
+ * 지면 검색 설명 — 팀 코드 + 그 팀 크루 이름(`TeamCopy.crewName`).
+ *
+ * 문장의 `{crew}` 는 크루 이름, `{crew:이/가}` 는 크루 이름 + 받침에 맞는 조사로 채운다. 팀이 다듬은 문장(`TEAM_VOICE`)도
+ * 이름을 박지 않고 이 자리표시를 쓴다 — 박아 두면 운영진이 팀 설정에서 크루 이름을 바꿔도 검색 설명만 옛 이름으로 남는다
+ * (PR #745 리뷰). 이름이 그대로면 예전 문장과 한 글자도 다르지 않다(테스트가 지킨다).
+ */
 export function pageDescription(key: PageDescriptionKey, teamCd: string, crewName: string): string {
-  return TEAM_VOICE[teamCd]?.pageDescriptions?.[key] ?? NEUTRAL_PAGE_DESCRIPTIONS[key](crewName);
+  const template = TEAM_VOICE[teamCd]?.pageDescriptions?.[key] ?? NEUTRAL_PAGE_DESCRIPTIONS[key];
+  return template.replace(/\{crew(?::([^}]+))?\}/g, (_, pair?: string) =>
+    pair ? josa(crewName, pair as JosaPair) : crewName,
+  );
 }
 
 /**
@@ -203,7 +235,12 @@ export type TeamCopy = {
   crewName: string;
   /** 회원 호칭(팀 설정 `brand.member_noun`, 없으면 「크루원」) */
   memberNoun: string;
-  /** 영문 워드마크(팀 설정 `brand.wordmark` — GIGANG·MOVOF, 없으면 크루 이름) — 칭호 배지 미리보기 기본 글자 */
+  /**
+   * 팀이 러닝 프로필(가까운 역·페이스·거리)을 쓰는가 — 팀 설정 `feature.running_profile`. 문구는 아니지만 카드가 받는 팀 묶음에
+   * 실어 카드·간단 카드·홈 리드가 한 값으로 갈린다(카드 팝업은 브라우저에서 데이터를 받아 서버가 따로 걸러 줄 수 없다).
+   */
+  runningProfile: boolean;
+  /** 영문 워드마크(팀 설정 `brand.wordmark` — GIGANG·MOBBY, 없으면 크루 이름) — 칭호 배지 미리보기 기본 글자 */
   wordmark: string;
   /** 랭킹 탭 이름 — 「{이름}의 전당」 */
   hallName: string;
@@ -233,6 +270,8 @@ export type TeamCopyInput = {
   memberNoun: string | null;
   /** 팀 설정 `brand.wordmark` */
   wordmark?: string | null;
+  /** 팀 설정 `feature.running_profile` — 생략하면 켬(지금 기강 동작) */
+  runningProfile?: boolean;
 };
 
 export function buildTeamCopy(input: TeamCopyInput): TeamCopy {
@@ -250,6 +289,7 @@ export function buildTeamCopy(input: TeamCopyInput): TeamCopy {
   return {
     crewName,
     memberNoun,
+    runningProfile: input.runningProfile ?? true,
     wordmark: input.wordmark?.trim() || voice.wordmark || crewName,
     hallName: `${crewName}의 전당`,
     storyName: `${crewName}이야기`,
@@ -280,7 +320,7 @@ export function pickTeamCopy<K extends keyof TeamCopy>(copy: TeamCopy, keys: rea
 }
 
 /** 프로필 카드(다이얼로그·상세) */
-export const CARD_COPY_KEYS = ["crewName", "memberNoun", "moodLabels", "cardMood"] as const;
+export const CARD_COPY_KEYS = ["crewName", "memberNoun", "moodLabels", "cardMood", "runningProfile"] as const;
 export type CardCopy = Pick<TeamCopy, (typeof CARD_COPY_KEYS)[number]>;
 
 /** 마일리지런 기록 폼(단건·다건) — 사진 안내문의 지면 이름·한마디 예시 */

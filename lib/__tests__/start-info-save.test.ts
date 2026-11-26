@@ -12,6 +12,16 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
+// 요청 팀의 가입 설정 — 러닝 프로필 사용 여부(팀 설정 feature.running_profile). 기본 켬, 테스트마다 바꾼다
+const signup = vi.hoisted(() => ({ runningProfile: true }));
+vi.mock("@/lib/queries/team-signup", () => ({
+  getRequestTeamSignup: async () => ({
+    steps: signup.runningProfile
+      ? ["시작", "로그인", "기본 정보", "러닝 프로필", "가입 목적", "참석 약속"]
+      : ["시작", "로그인", "기본 정보", "가입 목적", "참석 약속"],
+    joinPurposes: [],
+  }),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/dayjs", () => ({ dayjs: () => ({ toISOString: () => "2026-11-20T00:00:00.000Z" }) }));
 vi.mock("@/lib/queries/member", () => ({
@@ -193,6 +203,7 @@ describe("updateStartInfo — 권한·입력", () => {
     h.calls = [];
     h.fail = null;
     h.member = null;
+    signup.runningProfile = true;
   });
 
   it("로그인 안 했으면 저장하지 않는다", async () => {
@@ -216,5 +227,13 @@ describe("updateStartInfo — 권한·입력", () => {
     const r = await updateStartInfo(info({ runCareerCd: "NEW" }));
     expect(r).toEqual({ ok: true });
     expect(h.calls.find((c) => c.op === "upsert")!.payload).toMatchObject({ mem_id: "m1" });
+  });
+
+  it("러닝 프로필을 안 쓰는 팀(모비)은 받지 않는다 — 화면에 칸이 없어도 액션은 직접 부를 수 있다", async () => {
+    h.member = { id: "m1", status: "active" };
+    signup.runningProfile = false;
+    const r = await updateStartInfo(info({ runCareerCd: "NEW" }));
+    expect(r).toEqual({ ok: false, message: "이 크루에서는 러닝 프로필을 쓰지 않아요." });
+    expect(h.calls).toEqual([]);
   });
 });

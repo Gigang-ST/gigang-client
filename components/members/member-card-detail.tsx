@@ -25,6 +25,7 @@ import {
   getMemberIntro,
   getRaceDday,
   getRunningProfileSlots,
+  forTeamRunningProfile,
   showsPaceTrend,
   pbEmptyValue,
   toPaceChartRecords,
@@ -282,10 +283,15 @@ export function MemberCardDetail({
 
   const daysSinceJoin = getDaysSinceJoin(data.join_dt);
   const mood = getActivityMood(data.stats.recent_actv_cnt, data.last_actv_dt, copy);
-  const intro = getMemberIntro(data.running_profile);
+  // 팀이 러닝 프로필을 안 쓰면(모비) 페이스·거리·역을 비워 둔다 — 아래 섹션이 가입 목적만 남는다(§lib/member-card)
+  const runningProfile = forTeamRunningProfile(data.running_profile, copy.runningProfile);
+  const intro = getMemberIntro(runningProfile);
   const dday = data.upcoming_race ? getRaceDday(data.upcoming_race.stt_dt) : null;
 
-  const profileSlots = getRunningProfileSlots(data.running_profile);
+  // 러닝 프로필을 안 쓰는 팀은 「—」 자리 지킴 칸도 세우지 않는다
+  const profileSlots = copy.runningProfile ? getRunningProfileSlots(runningProfile) : [];
+  // 섹션 이름 — 러닝 프로필을 안 쓰는 팀은 이 섹션이 가입 목적뿐이라 이름도 그렇게 부른다
+  const profileSectionLabel = copy.runningProfile ? "러닝 프로필" : "가입 목적";
   // 기록 칸·페이스 추이는 이 팀의 기록 종목(랭킹탭과 같은 설정)에 맞춘다 — 카드 함수가 같이 실어 준다
   const pbRows = buildPbRows(data.best_records, data.utmb_index, data.record_categories);
   const showPace = showsPaceTrend(data.race_records, data.record_categories);
@@ -550,11 +556,11 @@ export function MemberCardDetail({
             <section className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
                 <SectionLabel>
-                  러닝 프로필
+                  {profileSectionLabel}
                 </SectionLabel>
                 {edit && (
                   <EditPencil
-                    label="러닝 프로필 수정"
+                    label={`${profileSectionLabel} 수정`}
                     onClick={edit.onEditProfile}
                   />
                 )}
@@ -572,7 +578,11 @@ export function MemberCardDetail({
                       edit?.onEditProfile();
                     }
                   }}
-                  message="다른 사람들에게 내 러닝 프로필을 공유해보세요"
+                  message={
+                    copy.runningProfile
+                      ? "다른 사람들에게 내 러닝 프로필을 공유해보세요"
+                      : "왜 들어왔는지 가입 목적을 남겨 보세요"
+                  }
                   className="cursor-pointer gap-2 py-5 text-[13px] transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   action={
                     <span className="inline-flex items-center gap-0.5 text-[12px] font-semibold text-primary">
@@ -583,6 +593,7 @@ export function MemberCardDetail({
                 />
               ) : (
                 <>
+                  {profileSlots.length > 0 && (
                   <ul className="flex flex-col gap-1.5">
                     {/* 편집판은 미입력 칸도 자리를 지키고(`—`), 공개판은 채워진 줄만 보인다 —
                         남에게 "이 사람 아무것도 안 썼다"를 보여줄 이유가 없다. */}
@@ -609,6 +620,7 @@ export function MemberCardDetail({
                       </li>
                     ))}
                   </ul>
+                  )}
 
                   {/* 가입 목적 — 라벨 자리를 위 도트 리더와 맞춰 리듬을 잇는다.
                       직접 쓴 한마디가 있으면 그 문장을, 없으면 목적 칩을 보여준다.
@@ -617,7 +629,8 @@ export function MemberCardDetail({
                     intro?.purposeTxt ||
                     (intro?.purposes.length ?? 0) > 0) && (
                     <div className="flex items-baseline gap-2 pt-0.5">
-                      <Caption className="shrink-0">가입 목적</Caption>
+                      {/* 섹션 이름이 이미 「가입 목적」인 팀(러닝 프로필 끔)은 같은 말을 두 번 쓰지 않는다 */}
+                      {copy.runningProfile && <Caption className="shrink-0">가입 목적</Caption>}
                       {intro?.purposeTxt ? (
                         <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-foreground">
                           &ldquo;{intro.purposeTxt}&rdquo;

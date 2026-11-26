@@ -195,8 +195,8 @@ export function StoryClient({
           unit="명"
           headerAction={
             <HelpTip title="새 얼굴">
-              최근 30일 안에 새로 들어온 {josa(copy.memberNoun, "이에요/예요")}. 카드를 누르면 러닝 프로필과
-              소개 한마디를 볼 수 있어요.
+              최근 30일 안에 새로 들어온 {josa(copy.memberNoun, "이에요/예요")}. 카드를 누르면{" "}
+              {copy.runningProfile ? "러닝 프로필과 소개 한마디를" : "가입 목적과 소개 한마디를"} 볼 수 있어요.
             </HelpTip>
           }
         >
@@ -212,6 +212,7 @@ export function StoryClient({
                   <MemberCardCompact
                     memId={nb.mem_id}
                     data={nb}
+                    runningProfile={copy.runningProfile}
                     onSelect={() => selectMember(nb.mem_id, nb.mem_nm)}
                   />
                 </li>
