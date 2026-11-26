@@ -8,7 +8,8 @@ import { dayjs } from "@/lib/dayjs";
 import { sealBalanceAnchor } from "@/lib/dues/seal-anchor";
 import { insertNoti } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { createAdminClient, createAdminClientAs } from "@/lib/supabase/admin";
+import { resolveReactivationRequests } from "@/lib/reactivation-request";
+import { createAdminClient, createAdminClientAs, createUntypedAdminClient } from "@/lib/supabase/admin";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 import { memberRemovalBlockReason } from "@/lib/member-manage-guard";
 import { koreanNameSchema } from "@/lib/validations/member";
@@ -336,6 +337,12 @@ export async function reactivateMember(memberId: string, resetBalance = false) {
 
     await recalculateBalance([memberId]);
     await notifyReactivated(teamId, [memberId]);
+    // 재가입 요청이 있었다면 「처리됨」으로 닫고 운영진 알림도 읽음 처리(#767)
+    await resolveReactivationRequests(createUntypedAdminClient(), {
+      teamId,
+      memIds: [memberId],
+      processedBy: member.id,
+    });
     revalidatePath("/admin/members");
     revalidatePath("/admin/dues");
     return { ok: true, message: null };
@@ -408,6 +415,11 @@ export async function batchReactivateMembers(memberIds: string[]) {
     // 일괄은 잔액 보존(초기화 없음) — 비활성 기간 제외만 재계산에 반영.
     await recalculateBalance(rels.map((r) => r.mem_id));
     await notifyReactivated(teamId, rels.map((r) => r.mem_id));
+    await resolveReactivationRequests(createUntypedAdminClient(), {
+      teamId,
+      memIds: rels.map((r) => r.mem_id),
+      processedBy: member.id,
+    });
     revalidatePath("/admin/members");
     revalidatePath("/admin/dues");
     return { ok: true, message: null };

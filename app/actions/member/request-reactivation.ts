@@ -6,7 +6,8 @@ import { withMemberAnyStatus } from "@/lib/actions/auth";
 import { dayjs } from "@/lib/dayjs";
 import { insertNotiMany } from "@/lib/notifications/insert-noti";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createReactivationRequest } from "@/lib/reactivation-request";
+import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
 
 /**
  * 재활성(활동 재개) 문의 — 비활성/탈퇴 회원이 참여를 시도하다 "관리자에게 문의하기"를
@@ -47,6 +48,18 @@ export async function requestReactivation() {
     if (!admins?.length) return { ok: false as const, message: "관리자를 찾을 수 없습니다." };
 
     const adminIds = admins.map((a) => a.mem_id);
+
+    // 요청 저장(#767) — 알림은 놓치거나 지우면 사라지지만 이 행은 회원관리 「재가입 요청」 목록에 남는다.
+    // 이미 대기 중이면 그대로 둔다(회원당 한 건). 저장이 실패해도 알림은 보낸다 — 요청 자체를 막지 않는다.
+    try {
+      await createReactivationRequest(createUntypedAdminClient(), {
+        teamId,
+        memId: member.id,
+        memStCd: member.status === "left" ? "left" : "inactive",
+      });
+    } catch (e) {
+      console.error("[reactivate_req] 요청 저장 실패", e);
+    }
     // KST 자정 기준 — 서버(UTC)에서 startOf("day")를 그냥 쓰면 KST 오전 9시가 경계가 돼
     // 하루 1회 중복 방지가 엉뚱한 시각에 초기화된다.
     const todayStart = dayjs().tz("Asia/Seoul").startOf("day").toISOString();
