@@ -12,13 +12,14 @@ import { getTeamCfg } from "@/lib/team-cfg/read";
  */
 export async function getTeamLegalDoc(kind: LegalDocKind): Promise<LegalDoc> {
   const { teamId, teamCd } = await getRequestTeamContext();
-  const [copy, site, operator, contact, duesEnabled, titlesEnabled] = await Promise.all([
+  const [copy, site, operator, contact, duesEnabled, titlesEnabled, runningProfileEnabled] = await Promise.all([
     getTeamCopy(),
     getSiteTeam(),
     getTeamCfg(teamId, "legal.operator"),
     getTeamCfg(teamId, "legal.contact"),
     getTeamCfg(teamId, "feature.dues"),
     getTeamCfg(teamId, "feature.titles"),
+    getTeamCfg(teamId, "feature.running_profile"),
   ]);
   return LEGAL_DOC_BUILDERS[kind]({
     teamCd,
@@ -31,5 +32,6 @@ export async function getTeamLegalDoc(kind: LegalDocKind): Promise<LegalDoc> {
     contact,
     duesEnabled,
     titlesEnabled,
+    runningProfileEnabled,
   });
 }

@@ -6,7 +6,8 @@
 -- 본문은 테스트 고정 자료(`lib/__fixtures__/gigang-newbie-guide.ts`)와 같아야 한다 — 회귀 테스트가 이 파일을 읽어 대조한다.
 --
 -- ⚠️ **배포 전 필수.** 새 코드는 하드코딩을 걷고 이 설정만 읽으므로, 행 없이 배포되면 기강 신입 안내에서 칩과 「더 알아보기」가 사라진다.
--- 이미 행이 있으면(운영진이 먼저 고쳤으면) 건드리지 않는다.
+-- 이미 살아 있는 행이 있으면(운영진이 먼저 고쳤으면) 건드리지 않는다. 지워진(del_yn) 정본 행만 남아 있으면 이 값으로 되살린다 —
+-- 예전 조건(NOT EXISTS)은 지워진 행도 「있음」으로 보고 넘어가, 기강 신입 안내가 빈 채로 남을 수 있었다(PR #745 리뷰).
 
 SET lock_timeout = '3s';
 
@@ -43,7 +44,6 @@ JOIN (
   }
 ]$sections$::jsonb)
 ) AS v(cfg_cd, val) ON t.team_cd = 'gigang'
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.team_cfg c
-  WHERE c.team_id = t.team_id AND c.cfg_cd = v.cfg_cd AND c.vers = 0
-);
+ON CONFLICT (team_id, cfg_cd, vers) DO UPDATE
+  SET cfg_val_json = EXCLUDED.cfg_val_json, del_yn = false, upd_at = now()
+  WHERE team_cfg.del_yn;

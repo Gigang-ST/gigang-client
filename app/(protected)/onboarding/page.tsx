@@ -13,7 +13,7 @@ import { ONBOARDING_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { getTeamChannels, getTeamKakaoPassword } from "@/lib/team-social";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 import { teamLinkOrigin } from "@/lib/team-host";
-import { getTeamSignup } from "@/lib/team-signup";
+import { getRequestTeamSignup } from "@/lib/queries/team-signup";
 
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
 import { safeNextPath } from "@/lib/safe-redirect";
@@ -80,11 +80,11 @@ async function OnboardingContent({
     ? rawName.trim()
     : "";
 
-  const { teamId, teamCd } = await getRequestTeamContext();
+  const { teamId } = await getRequestTeamContext();
   // 오픈채팅 주소·비밀번호는 이 팀 것(팀 설정) — 없는 팀은 안내를 안 그린다.
   // 이미 있는 사람(다른 팀 회원·이 팀에서 삭제됐던 회원)이면 사람 정보를 미리 채운 폼을 보여 준다 —
   // 바로 가입시키지 않고, 팀 정보는 새로 받고, 본인이 마지막에 가입을 누른다(onboardingJoinTeam).
-  const [gatherings, channels, kakaoChatPassword, existingPerson, otherTeamCfg, h, copy, duesEnabled] = await Promise.all([
+  const [gatherings, channels, kakaoChatPassword, existingPerson, otherTeamCfg, h, copy, duesEnabled, signup] = await Promise.all([
     getOpenGatheringsForPledge(),
     getTeamChannels(teamId),
     getTeamKakaoPassword(teamId),
@@ -95,6 +95,8 @@ async function OnboardingContent({
     getTeamCopy(),
     // 회비 기능 — 끈 팀(울산)은 완료 화면에 계좌 등록 링크를 안 세운다(계좌는 회비 환급용이라)
     getTeamCfg(teamId, "feature.dues"),
+    // 팀 가입 설정 — 단계(러닝 프로필 사용 여부)·가입 목적 칩(§lib/team-signup, #748)
+    getRequestTeamSignup(),
   ]);
   // 「○○ 가입이세요? 여기로 →」 — 다른 팀 주소의 로그인으로 보낸다(주소마다 로그인이 따로라 거기서 다시 로그인한다).
   // 주소는 접속 환경(운영·dev·로컬)에 맞는 그 팀 주소로 만든다.
@@ -122,8 +124,7 @@ async function OnboardingContent({
           kakaoOpenChatUrl={channels.kakao_open_chat ?? null}
           gatherings={gatherings}
           copy={pickTeamCopy(copy, ONBOARDING_COPY_KEYS)}
-          // 팀 가입 설정 — 단계(러닝 프로필 유무)·가입 목적 칩(§lib/team-signup, #748)
-          signup={getTeamSignup(teamCd)}
+          signup={signup}
           duesEnabled={duesEnabled}
         />
       </div>

@@ -9,7 +9,8 @@ import {
 } from "@/lib/validations/member";
 import { dayjs } from "@/lib/dayjs";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { getTeamSignup, isTeamJoinPurposes } from "@/lib/team-signup";
+import { hasRunningProfileStep, isTeamJoinPurposes } from "@/lib/team-signup";
+import { getRequestTeamSignup } from "@/lib/queries/team-signup";
 import { createAdminClient, createUntypedAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -31,25 +32,28 @@ export async function updateRunningProfile(
   }
 
   return withMember(async ({ member }) => {
-    const { teamId, teamCd } = await getRequestTeamContext();
+    const [{ teamId }, signup] = await Promise.all([getRequestTeamContext(), getRequestTeamSignup()]);
     // 가입 목적은 이 팀 칩만(§lib/team-signup, #748) — 가입 때와 같은 검사
-    if (!isTeamJoinPurposes(getTeamSignup(teamCd), parsed.data.joinPurpCds)) {
+    if (!isTeamJoinPurposes(signup, parsed.data.joinPurpCds)) {
       return { ok: false, message: "가입 목적을 다시 골라 주세요." };
     }
-    const admin = createUntypedAdminClient();
 
-    const { error } = await admin.from("mem_onbd_prf").upsert(
-      {
-        mem_id: member.id,
-        avg_run_dist_km: parsed.data.avgRunDistKm,
-        avg_pace_cd: parsed.data.avgPaceCd,
-      },
-      { onConflict: "mem_id" },
-    );
+    // 러닝 프로필을 안 쓰는 팀(모비)은 거리·페이스를 쓰지 않는다 — 폼이 그 칸을 안 보여 빈 값이 오는데, 그대로 저장하면
+    // 다른 팀에서 적어 둔 그 사람의 러닝 프로필(사람 것)이 지워진다
+    if (hasRunningProfileStep(signup)) {
+      const { error } = await createUntypedAdminClient().from("mem_onbd_prf").upsert(
+        {
+          mem_id: member.id,
+          avg_run_dist_km: parsed.data.avgRunDistKm,
+          avg_pace_cd: parsed.data.avgPaceCd,
+        },
+        { onConflict: "mem_id" },
+      );
 
-    if (error) {
-      console.error("[profile] 러닝 프로필 저장 실패", member.id, error.message);
-      return { ok: false, message: "러닝 프로필 저장에 실패했습니다." };
+      if (error) {
+        console.error("[profile] 러닝 프로필 저장 실패", member.id, error.message);
+        return { ok: false, message: "러닝 프로필 저장에 실패했습니다." };
+      }
     }
 
     // 가입 목적은 팀별(team_mem_onbd_rel) — 접속한 팀 것만 고친다.

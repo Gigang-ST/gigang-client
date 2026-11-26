@@ -39,10 +39,22 @@ export type LegalContext = {
   duesEnabled: boolean;
   /** 팀 설정 `feature.titles` */
   titlesEnabled: boolean;
+  /**
+   * 팀 설정 `feature.running_profile` — 끈 팀(모비)은 러닝 프로필을 받지 않으므로 수집·공개 항목에서 뺀다. 생략하면 켬
+   * (기강 문서는 2026-11-15 이전 문장 그대로).
+   */
+  runningProfileEnabled?: boolean;
 };
 
 /** 문서별 시행일·변경 이력 */
 type DocMeta = { effectiveDate: string; history: string[] };
+
+/** 고정 문장 목록, 또는 크루 이름 등 팀 문구를 받아 만드는 목록 */
+type TeamLines = string[] | ((ctx: Pick<LegalContext, "crewName" | "galleryName">) => string[]);
+
+function linesOf(v: TeamLines | undefined, ctx: LegalContext): string[] | undefined {
+  return typeof v === "function" ? v(ctx) : v;
+}
 
 /** 팀이 정한 문장. 칸이 비면 중립 문장(`NEUTRAL_LEGAL`) */
 type TeamLegal = {
@@ -54,8 +66,9 @@ type TeamLegal = {
   operatorFallback?: string;
   contactFallback?: string;
   termsAge?: string[];
-  privacyAge?: string[];
-  services?: string[];
+  /** 문장에 크루 이름·사진 지면 이름이 들어가면 함수로 둔다 — 팀 설정에서 이름을 바꾸면 약관도 따라온다(PR #745 리뷰) */
+  privacyAge?: TeamLines;
+  services?: TeamLines;
   meta?: Partial<Record<LegalDocKind, DocMeta>>;
 };
 
@@ -97,15 +110,16 @@ const TEAM_LEGAL: Readonly<Record<string, TeamLegal>> = {
   ulsan: {
     contactFallback: "zkzkdksek2@naver.com",
     termsAge: ["1986년생부터 성인까지 가입할 수 있습니다.", "가입 자격을 충족하지 않는 사실이 확인되면 가입이 취소될 수 있습니다."],
-    privacyAge: [
-      "모비는 1986년생부터 성인까지 가입할 수 있으며, 미성년자의 개인정보는 수집하지 않습니다.",
+    // 크루 이름·사진 지면 이름은 팀 문구에서 — 팀 설정에서 이름을 바꾸면 약관도 따라온다
+    privacyAge: ({ crewName }) => [
+      `${crewName}${josaOf(crewName, "은/는")} 1986년생부터 성인까지 가입할 수 있으며, 미성년자의 개인정보는 수집하지 않습니다.`,
       "가입 연령에 해당하지 않는 사실이 확인되면 해당 정보를 지체 없이 파기합니다.",
     ],
-    services: [
+    services: ({ galleryName }) => [
       "정기 및 비정기 트레일러닝·산행 모임 운영",
       "일정·공지 제공 및 앱 알림(웹 푸시) 발송",
       "대회 기록 관리 및 크루 내 기록 랭킹",
-      "사진·글 공유(갤러리), 댓글",
+      `사진·글 공유(${galleryName}), 댓글`,
       "크루 프로젝트 운영",
     ],
     meta: {
@@ -168,7 +182,8 @@ export function buildTermsDoc(ctx: LegalContext): LegalDoc {
   const org = team.orgName ?? ctx.crewName;
   const statesOperator = team.statesOperatorInTerms ?? NEUTRAL_LEGAL.statesOperatorInTerms;
   const app = `${ctx.crewName} 앱`;
-  const publicItems = `회원의 이름, 프로필 사진, 한마디, 러닝 프로필, 대회 기록${ctx.titlesEnabled ? ", 칭호는" : "은"}`;
+  const profileItem = ctx.runningProfileEnabled === false ? "가입 목적" : "러닝 프로필";
+  const publicItems = `회원의 이름, 프로필 사진, 한마디, ${profileItem}, 대회 기록${ctx.titlesEnabled ? ", 칭호는" : "은"}`;
 
   return {
     heading: "이용약관",
@@ -192,7 +207,7 @@ export function buildTermsDoc(ctx: LegalContext): LegalDoc {
       },
       {
         title: "서비스",
-        details: team.services ?? [
+        details: linesOf(team.services, ctx) ?? [
           "정기 및 비정기 모임 운영",
           "일정·공지 제공 및 앱 알림(웹 푸시) 발송",
           "대회 기록 관리 및 크루 내 기록 랭킹",
@@ -282,7 +297,9 @@ export function buildPrivacyDoc(ctx: LegalContext): LegalDoc {
         details: [
           "회원 정보: 이름, 연락처, 생년월일, 성별, 이메일, 프로필 사진, 소셜 로그인 식별자(카카오·구글)",
           ...(ctx.duesEnabled ? ["회비 정보: 계좌번호(선택), 은행명(선택), 회비 입금 내역(입금자명·금액·일시)"] : []),
-          "러닝 프로필(선택): 가까운 역, 평균 페이스·거리, 가입 목적, 가입 경로",
+          ctx.runningProfileEnabled === false
+            ? "가입 정보(선택): 가입 목적, 가입 경로"
+            : "러닝 프로필(선택): 가까운 역, 평균 페이스·거리, 가입 목적, 가입 경로",
           "활동 정보: 모임 참석 이력, 대회 기록, 기록증 사진, UTMB 프로필 주소 및 지수, 게시한 사진·글·댓글",
           "자동 수집 정보: 접속 기록(IP 주소, 접속 일시, 브라우저 정보), 쿠키, 웹 푸시 구독 정보",
         ],
@@ -328,7 +345,7 @@ export function buildPrivacyDoc(ctx: LegalContext): LegalDoc {
           contact
             ? "요청은 아래 책임자 연락처로 접수하며, 접수일로부터 10일 이내에 조치 결과를 알려드립니다."
             : "요청은 운영진에게(앱의 「건의하기」로도) 접수하며, 접수일로부터 10일 이내에 조치 결과를 알려드립니다.",
-          "이름·프로필 사진·러닝 프로필 등은 앱의 프로필 수정 화면에서 직접 정정할 수 있습니다.",
+          `이름·프로필 사진·${ctx.runningProfileEnabled === false ? "가입 목적" : "러닝 프로필"} 등은 앱의 프로필 수정 화면에서 직접 정정할 수 있습니다.`,
         ],
       },
       {
@@ -343,7 +360,7 @@ export function buildPrivacyDoc(ctx: LegalContext): LegalDoc {
           "브라우저 설정에서 쿠키 저장을 거부할 수 있으나, 이 경우 로그인이 유지되지 않아 서비스 이용이 제한됩니다.",
         ],
       },
-      { title: "가입 연령", details: [...(team.privacyAge ?? NEUTRAL_LEGAL.privacyAge)] },
+      { title: "가입 연령", details: [...(linesOf(team.privacyAge, ctx) ?? NEUTRAL_LEGAL.privacyAge)] },
       { title: "개인정보 보호 책임자", details: [resolveOperator(ctx), contactLine(contact)] },
       {
         title: "권익침해 구제 방법",

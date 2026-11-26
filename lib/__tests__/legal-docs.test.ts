@@ -135,3 +135,24 @@ describe("설정이 하나도 없는 새 팀", () => {
     ]);
   });
 });
+
+describe("팀 설정을 따라가는 문장(PR #745 리뷰)", () => {
+  const allTextOf = (doc: LegalDoc) => [doc.heading, ...doc.sections.flatMap((s) => [s.title, ...s.details])].join("\n");
+
+  it("울산 크루 이름·사진 지면 이름을 바꾸면 개인정보 연령 문장·서비스 항목도 따라온다", () => {
+    const renamed = { ...ulsan, crewName: "새이름", galleryName: "앨범" };
+    expect(allTextOf(buildPrivacyDoc(renamed))).toContain("새이름은 1986년생부터 성인까지");
+    expect(allTextOf(buildTermsDoc(renamed))).toContain("사진·글 공유(앨범), 댓글");
+    expect(allTextOf(buildPrivacyDoc(ulsan))).toContain("모비는 1986년생부터 성인까지");
+  });
+
+  it("러닝 프로필을 끈 팀은 수집·공개 항목에서 러닝 프로필이 빠지고 가입 정보만 남는다", () => {
+    const off = { ...ulsan, runningProfileEnabled: false };
+    const privacy = allTextOf(buildPrivacyDoc(off));
+    expect(privacy).not.toContain("러닝 프로필");
+    expect(privacy).toContain("가입 정보(선택): 가입 목적, 가입 경로");
+    expect(allTextOf(buildTermsDoc(off))).toContain("한마디, 가입 목적, 대회 기록");
+    // 생략(기본)·켬은 예전 문장 그대로
+    expect(allTextOf(buildPrivacyDoc(ulsan))).toContain("러닝 프로필(선택): 가까운 역");
+  });
+});

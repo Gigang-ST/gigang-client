@@ -20,4 +20,4 @@ export const Purpose: Story = { args: { step: "가입 목적" } };
 export const Pledge: Story = { args: { step: "참석 약속" } };
 export const Done: Story = { args: { step: "참석 약속", done: true } };
 /** 러닝 프로필 단계가 없는 팀(모비) — 5단계 */
-export const PurposeWithoutRunningProfile: Story = { args: { step: "가입 목적", steps: getTeamSignup("ulsan").steps } };
+export const PurposeWithoutRunningProfile: Story = { args: { step: "가입 목적", steps: getTeamSignup("ulsan", { runningProfile: false }).steps } };

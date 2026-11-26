@@ -46,12 +46,15 @@ export function LinesEditor({
     .map((l) => l.trim())
     .filter(Boolean);
   const tooLong = rows.find((r) => r.length > 20);
+  // 개수 상한도 서버 형식(guideActivitiesSchema .max(20))과 같게 — 안 막으면 저장이 이유 없이 거절된다(PR #745 리뷰)
+  const tooMany = rows.length > 20;
   return (
     <div className="flex flex-col gap-2">
       <Textarea value={text} rows={7} placeholder={placeholder} onChange={(e) => setText(e.target.value)} />
-      <Caption>한 줄에 하나씩 · {rows.length}개</Caption>
+      <Caption>한 줄에 하나씩 · {rows.length}개 (20개까지)</Caption>
       {tooLong && <Caption className="text-destructive">「{tooLong}」 — 20자까지예요</Caption>}
-      <SaveButton pending={pending} disabled={Boolean(tooLong)} onClick={() => onSave(rows)} />
+      {tooMany && <Caption className="text-destructive">20개까지 넣을 수 있어요</Caption>}
+      <SaveButton pending={pending} disabled={Boolean(tooLong) || tooMany} onClick={() => onSave(rows)} />
     </div>
   );
 }

@@ -82,12 +82,18 @@ export function ProfileEditForm({
   initialRunningProfile,
   initialStartInfo,
   joinPurposes = JOIN_PURP_CODES,
+  runningProfileEnabled = true,
 }: {
   member: MemberData;
   initialRunningProfile: InitialRunningProfile;
   initialStartInfo: StartInfoRead;
   /** 이 팀 가입 목적 칩(§lib/team-signup, #748). 생략하면 전체 */
   joinPurposes?: readonly (typeof JOIN_PURP_CODES)[number][];
+  /**
+   * 팀이 러닝 프로필을 쓰는가(팀 설정 `feature.running_profile`). 끈 팀(모비)은 가까운 역·페이스·거리·러닝 이력 칸을 안 그리고
+   * 가입 목적만 남는다 — 그 값은 저장하지도 않는다(다른 팀에서 적어 둔 사람의 러닝 프로필을 지우지 않게).
+   */
+  runningProfileEnabled?: boolean;
 }) {
   // 저장 후 복귀. 직접 진입(알림 딥링크 등)이면 뒤로 갈 데가 없어 맨 `router.back()`은
   // 조용히 죽는다 — 토스트만 뜨고 폼에 남아 다시 저장을 누르게 된다(#450).
@@ -106,9 +112,14 @@ export function ProfileEditForm({
   const [avgRunDistKm, setAvgRunDistKm] = useState(
     initialRunningProfile.avgRunDistKm?.toString() ?? "",
   );
-  const [joinPurpCds, setJoinPurpCds] = useState<string[]>(
-    initialRunningProfile.joinPurpCds,
+  // 이 팀 칩 목록에 없는 코드는 빼고 시작한다 — 화면에 칩이 없어 지울 수 없는데 서버는 팀 목록 밖 코드를 거절해서,
+  // 남겨 두면 페이스만 바꿔도 저장이 매번 막힌다(PR #745 리뷰). 저장하면 그 코드는 이 팀 가입 목적에서 빠진다.
+  // 비교 기준도 걸러 낸 목록이다 — 원본과 비교하면 숨은 코드가 있는 사람은 열자마자 「바뀜」이 되어, 사진만 바꿔도 가입 목적이
+  // 몰래 다시 저장된다(PR #745 리뷰). 숨은 코드는 본인이 가입 목적을 고쳐 저장할 때 함께 빠진다.
+  const [initialJoinPurpCds] = useState<string[]>(() =>
+    initialRunningProfile.joinPurpCds.filter((cd) => (joinPurposes as readonly string[]).includes(cd)),
   );
+  const [joinPurpCds, setJoinPurpCds] = useState<string[]>(initialJoinPurpCds);
   const [joinPurpTxt, setJoinPurpTxt] = useState(
     initialRunningProfile.joinPurpTxt ?? "",
   );
@@ -182,7 +193,7 @@ export function ProfileEditForm({
     avatarState.kind === "new" ||
     (avatarState.kind === "current" && !!member.avatar_url);
 
-  const stationDirty = nearStnNm !== initialRunningProfile.nearStnNm;
+  const stationDirty = runningProfileEnabled && nearStnNm !== initialRunningProfile.nearStnNm;
 
   // 거리는 문자열 입력이라 저장 전에 검증한다 — 빈 값은 "미입력"(null)으로 허용.
   const distTrimmed = avgRunDistKm.trim();
@@ -196,13 +207,14 @@ export function ProfileEditForm({
     a.length === b.length && a.every((v, i) => v === b[i]);
 
   const runningDirty =
-    avgPaceCd !== initialRunningProfile.avgPaceCd ||
-    distNum !== initialRunningProfile.avgRunDistKm ||
-    !sameStrArray(joinPurpCds, initialRunningProfile.joinPurpCds) ||
+    (runningProfileEnabled &&
+      (avgPaceCd !== initialRunningProfile.avgPaceCd || distNum !== initialRunningProfile.avgRunDistKm)) ||
+    !sameStrArray(joinPurpCds, initialJoinPurpCds) ||
     joinPurpTxt.trim() !== (initialRunningProfile.joinPurpTxt ?? "").trim();
 
   const startValues = draftToValues(startDraft);
   const startDirty =
+    runningProfileEnabled &&
     JSON.stringify(startValues) !==
     JSON.stringify({
       runCareerCd: initialStartInfo.runCareerCd,
@@ -392,10 +404,13 @@ export function ProfileEditForm({
         className="flex scroll-mt-20 flex-col gap-4 rounded-2xl border-[1.5px] border-border p-4"
       >
         <div className="flex flex-col gap-0.5">
-          <Label className="text-[15px] font-semibold">러닝 프로필</Label>
+          {/* 러닝 프로필을 안 쓰는 팀은 이 블록이 가입 목적뿐이라 이름도 그렇게 부른다 */}
+          <Label className="text-[15px] font-semibold">{runningProfileEnabled ? "러닝 프로필" : "가입 목적"}</Label>
           <Caption>내 프로필 카드의 &lsquo;소개&rsquo;에 보여요.</Caption>
         </div>
 
+        {runningProfileEnabled && (
+        <>
         {/* 가까운 역 — 콤보박스 트리거는 type="button", 팝오버는 포털이라 폼 안에서 안전 */}
         <div className="flex flex-col gap-2">
           <Label>가까운 역 (선택)</Label>
@@ -443,6 +458,8 @@ export function ProfileEditForm({
           </div>
         </div>
         {distError && <Caption className="text-destructive">{distError}</Caption>}
+        </>
+        )}
 
         <div className="flex flex-col gap-2">
           <Label>목적 (선택)</Label>
@@ -479,7 +496,7 @@ export function ProfileEditForm({
             value={joinPurpTxt}
             onChange={(e) => setJoinPurpTxt(e.target.value)}
             maxLength={PURP_TXT_MAX}
-            placeholder="같이 달릴 사람을 찾고 있어요"
+            placeholder={runningProfileEnabled ? "같이 달릴 사람을 찾고 있어요" : "같이 운동할 사람을 찾고 있어요"}
             className="rounded-xl border-[1.5px] text-[15px]"
           />
           <div className="flex items-center justify-end gap-2">
@@ -490,7 +507,9 @@ export function ProfileEditForm({
         </div>
       </div>
 
-      {/* ── 시작 정보 — 경력·주간 거리·기록(자기신고). 가입 때 건너뛴 사람도 여기서 채운다 ── */}
+      {/* ── 시작 정보 — 경력·주간 거리·기록(자기신고). 가입 때 건너뛴 사람도 여기서 채운다.
+          러닝 프로필을 안 쓰는 팀은 가입 때도 안 받으므로 여기서도 안 그린다 ── */}
+      {runningProfileEnabled && (
       <div
         id="start-info"
         className="flex scroll-mt-20 flex-col gap-4 rounded-2xl border-[1.5px] border-border p-4"
@@ -506,6 +525,7 @@ export function ProfileEditForm({
         </div>
         <StartInfoFields value={startDraft} onChange={setStartDraft} />
       </div>
+      )}
 
       {/* 저장 버튼 */}
       <Button

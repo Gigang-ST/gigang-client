@@ -42,6 +42,7 @@ export function MemberCardCompact({
   meta,
   onSelect,
   className,
+  runningProfile = true,
 }: {
   /** 폴백 아바타 seed — 앱 전체가 mem_id로 통일 */
   memId: string;
@@ -59,11 +60,13 @@ export function MemberCardCompact({
    */
   onSelect?: () => void;
   className?: string;
+  /** 팀이 러닝 프로필을 쓰는가(팀 설정 `feature.running_profile` — 팀 문구 `copy.runningProfile`). 끈 팀은 오른쪽 러닝 프로필 칸이 없다 */
+  runningProfile?: boolean;
 }) {
   const frameCls = getFrameCls(data.frame_cd);
   const clickable = onSelect != null;
 
-  const rows = getRunningProfileRows(data.running_profile);
+  const rows = runningProfile ? getRunningProfileRows(data.running_profile) : [];
   const purposeTxt = data.running_profile?.join_purp_txt?.trim() || null;
   // 직접 쓴 한마디가 있으면 칩은 아예 뽑지 않는다 — 렌더가 어차피 문장만 그린다.
   const purposes = purposeTxt
@@ -134,7 +137,7 @@ export function MemberCardCompact({
             ))}
           </ul>
         ) : (
-          !blank && (
+          !blank && runningProfile && (
             <span className="w-[132px] shrink-0 text-right text-[11px] leading-relaxed text-muted-foreground/70">
               러닝 프로필은
               <br />
@@ -193,8 +196,9 @@ export function MemberCardCompact({
           크루가 할 일(먼저 인사)로 문장을 닫아, 빈 칸을 설명이 아니라 초대로 쓴다. */}
       {blank && (
         <p className="break-keep text-[13px] leading-relaxed text-muted-foreground">
-          러닝 프로필이 비어 있어요. 이제 막 달리기를 시작한 새내기일지도 몰라요
-          — 만나면 먼저 인사 건네주세요.
+          {runningProfile
+            ? "러닝 프로필이 비어 있어요. 이제 막 달리기를 시작한 새내기일지도 몰라요 — 만나면 먼저 인사 건네주세요."
+            : "아직 소개가 비어 있어요. 이제 막 합류한 새 얼굴이에요 — 만나면 먼저 인사 건네주세요."}
         </p>
       )}
     </div>

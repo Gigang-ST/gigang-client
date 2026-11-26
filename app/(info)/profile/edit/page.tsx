@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRunningProfile } from "@/lib/queries/onboarding-profile";
 import { getStartInfo } from "@/lib/queries/start-info";
-import { getRequestTeamContext } from "@/lib/queries/request-team";
-import { getTeamSignup } from "@/lib/team-signup";
+import { getRequestTeamSignup } from "@/lib/queries/team-signup";
+import { hasRunningProfileStep } from "@/lib/team-signup";
 import { ProfileEditForm } from "@/components/profile/profile-edit-form";
 
 export default async function ProfileEditPage() {
@@ -12,10 +12,10 @@ export default async function ProfileEditPage() {
   if (!user) redirect("/auth/login");
   if (!member) redirect("/onboarding");
 
-  const [runningProfile, startInfo, { teamCd }] = await Promise.all([
+  const [runningProfile, startInfo, signup] = await Promise.all([
     getRunningProfile(member.id),
     getStartInfo(member.id),
-    getRequestTeamContext(),
+    getRequestTeamSignup(),
   ]);
 
   return (
@@ -36,8 +36,9 @@ export default async function ProfileEditPage() {
       }}
       initialRunningProfile={runningProfile}
       initialStartInfo={startInfo}
-      // 가입 목적 칩은 이 팀 것(§lib/team-signup, #748) — 가입 폼과 같은 목록
-      joinPurposes={getTeamSignup(teamCd).joinPurposes}
+      // 가입 목적 칩은 이 팀 것, 러닝 프로필은 팀이 쓸 때만(§lib/team-signup, #748) — 가입 폼과 같은 설정
+      joinPurposes={signup.joinPurposes}
+      runningProfileEnabled={hasRunningProfileStep(signup)}
     />
   );
 }

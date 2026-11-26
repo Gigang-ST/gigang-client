@@ -28,6 +28,7 @@ export const CFG_GROUPS: { group: CfgGroup; label: string }[] = [
 export const CFG_ORDER: readonly string[] = [
   "feature.dues",
   "feature.titles",
+  "feature.running_profile",
   "records.categories",
   "social.channels",
   "social.kakao_open_chat_password",

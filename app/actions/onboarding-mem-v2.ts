@@ -13,7 +13,8 @@ import { saveStartInfo } from "@/lib/start-info-save";
 import { sealBalanceAnchor } from "@/lib/dues/seal-anchor";
 import { evaluateAndGrantTitles } from "@/lib/titles/engine";
 import { joinGatheringWithCapCheck } from "@/lib/gathering/join-gathering";
-import { getTeamSignup, hasRunningProfileStep, isTeamJoinPurposes } from "@/lib/team-signup";
+import { hasRunningProfileStep, isTeamJoinPurposes } from "@/lib/team-signup";
+import { getRequestTeamSignup } from "@/lib/queries/team-signup";
 import {
   onboardingProfileSchema,
   signupBirthdaySchema,
@@ -462,8 +463,7 @@ export async function onboardingCreateMember(args: {
  * 어긋나면 사람에게 보일 문장, 맞으면 null.
  */
 async function teamJoinPurposeError(codes: readonly string[]): Promise<string | null> {
-  const { teamCd } = await getRequestTeamContext();
-  return isTeamJoinPurposes(getTeamSignup(teamCd), codes) ? null : "가입 목적을 다시 골라 주세요.";
+  return isTeamJoinPurposes(await getRequestTeamSignup(), codes) ? null : "가입 목적을 다시 골라 주세요.";
 }
 
 /**
@@ -518,8 +518,7 @@ async function finishTeamJoin({
   const untypedAdmin = createUntypedAdminClient();
   // 러닝 프로필 단계가 없는 팀(모비, #748)은 이 두 저장을 건너뛴다 — 폼이 그 값을 안 받으므로, 다른 팀에서 이미 적어 둔
   // 사람의 러닝 프로필·시작 정보를 빈 값으로 덮어쓰게 된다.
-  const { teamCd } = await getRequestTeamContext();
-  if (hasRunningProfileStep(getTeamSignup(teamCd))) {
+  if (hasRunningProfileStep(await getRequestTeamSignup())) {
     const { error: eOnbdPrf } = await untypedAdmin.from("mem_onbd_prf").upsert(
       {
         mem_id: memId,

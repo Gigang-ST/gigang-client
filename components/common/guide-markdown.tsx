@@ -20,8 +20,11 @@ const components: Components = {
   ul: ({ children }) => (
     <ul className="mb-3 list-disc space-y-1 pl-4 text-[13px] text-muted-foreground last:mb-0">{children}</ul>
   ),
-  ol: ({ children }) => (
-    <ol className="mb-3 list-decimal space-y-1 pl-4 text-[13px] text-muted-foreground last:mb-0">{children}</ol>
+  // 시작 번호를 지킨다 — 「3. 준비」로 시작한 목록이 1부터 다시 매겨지지 않게(PR #745 리뷰)
+  ol: ({ children, start }) => (
+    <ol start={start} className="mb-3 list-decimal space-y-1 pl-4 text-[13px] text-muted-foreground last:mb-0">
+      {children}
+    </ol>
   ),
   strong: ({ children }) => <span className="font-bold text-foreground">{children}</span>,
   a: ({ href, children }) => (

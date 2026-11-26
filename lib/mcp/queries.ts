@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { dayjs } from "@/lib/dayjs";
 import type { Database } from "@/lib/supabase/database.types";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
+import { resolveTeamCfgValue } from "@/lib/team-cfg/registry";
 import { JOIN_PURP_SHORT_LABELS, PACE_LABELS } from "@/lib/validations/member";
 import {
   formatRecTime,
@@ -381,6 +382,8 @@ async function fetchActiveMemberSeeds(
  * 역·거리·페이스(`mem_onbd_prf`)는 사람 것이라 호출측 mem_id 목록으로만 스코프하고,
  * 가입 목적(`team_mem_onbd_rel`)은 **이 팀 것만** 읽는다 — 다른 팀에 들어온 이유가 섞이지 않게.
  * 온보딩 개편 전 가입자 등 행이 없는 멤버는 Map에 없음 → 호출측에서 null/[] 기본값 처리.
+ * 러닝 프로필을 안 쓰는 팀(팀 설정 `feature.running_profile` 끔 — 모비)은 역·거리·페이스·시작 정보를 읽지도 내보내지도 않는다
+ * (화면과 같은 기준, 2026-11-26). 가입 목적만 싣는다.
  */
 async function fetchRunningProfiles(
   supabase: Db,
@@ -390,9 +393,12 @@ async function fetchRunningProfiles(
 ): Promise<Map<string, RunningProfile>> {
   const map = new Map<string, RunningProfile>();
   if (memIds.length === 0) return map;
+  const runningProfileOn = await readRunningProfileOn(supabase, teamId);
   // 시작 정보(경력·주간 거리·자기신고 기록)는 admin 에게만 — 비-admin 은 칸도 기록 테이블도 아예 안 읽는다.
   // select 문자열을 합치면 타입 파서가 못 읽어 리터럴 둘로 갈랐다.
-  const prfQuery = isAdmin
+  const prfQuery = !runningProfileOn
+    ? Promise.resolve({ data: [], error: null })
+    : isAdmin
     ? supabase
         .from("mem_onbd_prf")
         .select(
@@ -410,7 +416,7 @@ async function fetchRunningProfiles(
       .select("mem_id, join_purp_cds")
       .eq("team_id", teamId)
       .in("mem_id", memIds),
-    isAdmin
+    isAdmin && runningProfileOn
       ? supabase.from("mem_start_rec_rel").select("mem_id, dist_cd, rec_sec").in("mem_id", memIds)
       : Promise.resolve({ data: null, error: null }),
   ]);
@@ -445,7 +451,34 @@ async function fetchRunningProfiles(
       ...(isAdmin ? { start_info: buildStartInfoSummary(r, recsByMem.get(r.mem_id) ?? []) } : {}),
     });
   }
+  // 러닝 프로필 행이 없어도 이 팀 가입 목적이 있으면 싣는다 — 예전엔 행이 있는 사람만 돌아 가입 목적까지 빠졌다
+  // (러닝 프로필을 안 쓰는 팀은 그 행을 만들지 않아 가입 목적이 통째로 사라졌다)
+  for (const [memId, cds] of purpByMem) {
+    if (map.has(memId)) continue;
+    map.set(memId, {
+      ...EMPTY_RUNNING_PROFILE,
+      join_purposes: decodeJoinPurposes(cds ?? null),
+      ...(isAdmin ? { start_info: null } : {}),
+    });
+  }
   return map;
+}
+
+/**
+ * 팀 설정 `feature.running_profile` — 이 함수가 받은 클라이언트로 직접 읽는다(`lib/team-cfg/read` 는 server-only 라 MCP 코어가
+ * 못 부른다). 행이 없거나 형식이 틀리면 사전 기본값(켬), 조회가 실패하면 끔 쪽으로(러닝 프로필을 안 쓰는 팀에 새지 않게).
+ */
+async function readRunningProfileOn(supabase: Db, teamId: string): Promise<boolean> {
+  const { data, error } = await (supabase as unknown as SupabaseClient)
+    .from("team_cfg")
+    .select("cfg_val_json")
+    .eq("team_id", teamId)
+    .eq("cfg_cd", "feature.running_profile")
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (error) return false;
+  return resolveTeamCfgValue("feature.running_profile", data ? (data as { cfg_val_json: unknown }).cfg_val_json : undefined);
 }
 
 const EMPTY_RUNNING_PROFILE: RunningProfile = {

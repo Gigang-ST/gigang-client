@@ -168,3 +168,19 @@ describe("withCrewPhrase — 「{이름} 크루와」 (#658)", () => {
     expect(withCrewPhrase("  ")).toBe("크루와");
   });
 });
+
+describe("팀 설정을 따라가는 값(PR #745 리뷰)", () => {
+  it("지면 검색 설명은 설정된 크루 이름을 따른다 — 이름이 그대로면 예전 문장 그대로", () => {
+    expect(pageDescription("schedule", "ulsan", "모비")).toBe(
+      "울산 트레일러닝 크루 모비의 다가오는 산행·트레일러닝 모임과 참가 대회 일정.",
+    );
+    expect(pageDescription("schedule", "ulsan", "새이름")).toContain("크루 새이름의");
+    expect(pageDescription("races", "ulsan", "새이름")).toMatch(/^새이름이 /);
+    expect(pageDescription("board", "gigang", "기강")).toBe("기강 러닝크루 공지사항과 업데이트 소식.");
+  });
+
+  it("러닝 프로필 사용은 팀 설정을 따르고, 못 읽었거나 비면 켬(지금 기강 동작)", () => {
+    expect(buildTeamCopy({ teamCd: "ulsan", crewName: "모비", memberNoun: null, runningProfile: false }).runningProfile).toBe(false);
+    expect(buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: null }).runningProfile).toBe(true);
+  });
+});

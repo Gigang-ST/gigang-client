@@ -21,7 +21,7 @@ const EMPTY_GUIDE = { activities: [], sections: [] };
 describe("신입 가입 안내", () => {
   it("기강은 예전 그대로 — 인사·6단계·운영 안내·둘러보기", () => {
     const t = text(
-      renderToStaticMarkup(createElement(NewbieContent, { crewName: "기강", signup: getTeamSignup("gigang"), guide: GIGANG_GUIDE })),
+      renderToStaticMarkup(createElement(NewbieContent, { crewName: "기강", signup: getTeamSignup("gigang", { runningProfile: true }), guide: GIGANG_GUIDE })),
     );
     expect(t).toContain("기강에 잘 오셨어요");
     expect(t).toContain("러닝 프로필은 건너뛰어도 돼요");
@@ -37,7 +37,7 @@ describe("신입 가입 안내", () => {
 
   it("울산(모비)은 설정이 비어 있으면 크루 이름 인사 + 러닝 프로필 없는 5단계만, 기강 운영 안내가 없다", () => {
     const t = text(
-      renderToStaticMarkup(createElement(NewbieContent, { crewName: "모비", signup: getTeamSignup("ulsan"), guide: EMPTY_GUIDE })),
+      renderToStaticMarkup(createElement(NewbieContent, { crewName: "모비", signup: getTeamSignup("ulsan", { runningProfile: false }), guide: EMPTY_GUIDE })),
     );
     expect(t).toContain("모비에 잘 오셨어요");
     expect(t).toContain("모비 둘러보기");
@@ -58,7 +58,7 @@ describe("신입 가입 안내", () => {
         { title: "숨긴 칸", icon: "info" as const, body: "비밀", visible: false },
       ],
     };
-    const t = text(renderToStaticMarkup(createElement(NewbieContent, { crewName: "모비", signup: getTeamSignup("ulsan"), guide })));
+    const t = text(renderToStaticMarkup(createElement(NewbieContent, { crewName: "모비", signup: getTeamSignup("ulsan", { runningProfile: false }), guide })));
     expect(t).toContain("이런 활동을 해요");
     expect(t).toContain("⛰️ 산행");
     expect(t).toContain("모비가 더 궁금하다면");
