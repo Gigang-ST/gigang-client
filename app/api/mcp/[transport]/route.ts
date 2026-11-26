@@ -38,6 +38,7 @@ import {
   uploadDuesXlsx,
 } from "@/lib/mcp/dues";
 import { issueCouponsViaMcp, listCouponsViaMcp } from "@/lib/mcp/coupons";
+import { WORKOUTS_DEFAULT_LIMIT, WORKOUTS_MAX_LIMIT, listMemberWorkouts } from "@/lib/mcp/intervals";
 import { COUPON_ISSUE_MAX, COUPON_TEXT_MAX, COUPON_TYPES } from "@/lib/validations/coupon";
 import { createSchPostViaMcp } from "@/lib/mcp/create-sch-post";
 import { listHyroxCompetitions, listHyroxRankings, logHyroxRecord } from "@/lib/mcp/hyrox";
@@ -1176,6 +1177,40 @@ const handler = createMcpHandler(
         runDuesTool(extra, (ctx, supabase) => listCouponsViaMcp(supabase, ctx, { memId: args.mem_id, status: args.status })),
     );
 
+    server.registerTool(
+      "list_member_workouts",
+      {
+        title: "회원 운동 요약 조회",
+        description:
+          "회원이 intervals.icu 를 연결해 두었다면 그 회원의 최근 운동 **요약**(날짜·종목·거리·시간·페이스)을 봅니다. " +
+          "운영진(admin) 전용입니다. 심박·경로 같은 상세는 저장하지 않아 볼 수 없고, API 키도 나가지 않습니다. " +
+          "연결하지 않은 회원은 connected=false 로 답합니다. member_id(uuid) 또는 name(이름 완전일치) 중 하나를 주세요 — 동명이인이면 member_id 로 다시 부릅니다. " +
+          "회원의 운동 기록이니 필요한 만큼만 사용자에게 보여 주세요.",
+        inputSchema: {
+          member_id: z.string().uuid().optional(),
+          name: z.string().min(1).optional(),
+          from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("이 날 이후(YYYY-MM-DD)"),
+          to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("이 날 이전(YYYY-MM-DD)"),
+          limit: z
+            .number()
+            .int()
+            .min(1)
+            .max(WORKOUTS_MAX_LIMIT)
+            .optional()
+            .describe(`최신순 최대 건수(기본 ${WORKOUTS_DEFAULT_LIMIT}, 최대 ${WORKOUTS_MAX_LIMIT})`),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, (ctx, supabase) =>
+          listMemberWorkouts(supabase, ctx, {
+            memberId: args.member_id,
+            name: args.name,
+            from: args.from,
+            to: args.to,
+            limit: args.limit,
+          }),
+        ),
+    );
   },
   {
     serverInfo: { name: "gigang-ops-mcp", version: "0.1.0" },

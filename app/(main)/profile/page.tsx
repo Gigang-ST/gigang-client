@@ -3,6 +3,9 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { getVisibleInactiveReason, statusReasonLabel } from "@/lib/inactive-notice";
+import { getIntervalsStatus, listRecentActivities } from "@/lib/intervals/core";
+import { getIntervalsSecret } from "@/lib/intervals/server";
+import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getMemberCancelCount } from "@/lib/queries/member-cancel-count";
@@ -17,9 +20,32 @@ import { InactiveReasonNote } from "@/components/common/inactive-reason-note";
 import { PageHeader } from "@/components/common/page-header";
 import { ReactivationRequestButton } from "@/components/common/reactivation-request-button";
 import { Body, Caption } from "@/components/common/typography";
+import { IntervalsSection } from "@/components/profile/intervals-section";
 import { ProfileTabCard } from "@/components/profile/profile-tab-card";
 import type { MemberStatus } from "@/components/races/types";
 import { Skeleton } from "@/components/ui/skeleton";
+
+/**
+ * 「최근 운동」 데이터(#760) — 연결 상태 + 저장된 활동 요약. 외부(intervals.icu)는 부르지 않는다.
+ * 조회가 실패해도 프로필 전체를 막지 않는다(연결 안 한 상태로 그린다).
+ */
+async function loadIntervals(memId: string) {
+  const enabled = getIntervalsSecret() !== null;
+  try {
+    const db = createUntypedAdminClient();
+    const status = await getIntervalsStatus(db, memId);
+    const activities = status.connected ? await listRecentActivities(db, memId, { limit: 5 }) : [];
+    return {
+      enabled,
+      activities,
+      status: status.connected
+        ? { connected: true as const, statusCd: status.statusCd, lastOkAt: status.lastOkAt }
+        : { connected: false as const },
+    };
+  } catch {
+    return { enabled, activities: [], status: { connected: false as const } };
+  }
+}
 
 async function ProfileContent() {
   const { user, member, supabase } = await getCurrentMember();
@@ -44,6 +70,7 @@ async function ProfileContent() {
     cancelCnt,
     titlesEnabled,
     copy,
+    intervals,
   ] = await Promise.all([
     getPublicMemberCard(supabase, member.id, teamId),
     supabase
@@ -67,6 +94,8 @@ async function ProfileContent() {
     getTeamCfg(teamId, "feature.titles"),
     // 팀 문구 — 크루 이름·호칭·컨디션 이름표(§lib/team-copy)
     getTeamCopy(),
+    // intervals.icu 연결 상태·최근 운동(#760) — DB 에 저장된 값만 읽는다(외부 호출 없음)
+    loadIntervals(member.id),
   ]);
 
   // RPC는 `mem_st_cd = 'active'`만 돌려준다 — 비활성·탈퇴 상태면 카드가 통째로 비므로
@@ -156,6 +185,11 @@ async function ProfileContent() {
         maxRarityLevel={maxRarityLevel}
         cmmCdRows={cmmCdRows}
         competitionRegisterMemberStatus={competitionRegisterMemberStatus}
+      />
+      <IntervalsSection
+        status={intervals.status}
+        activities={intervals.activities}
+        enabled={intervals.enabled}
       />
     </div>
   );

@@ -28,6 +28,8 @@ export const env = createEnv({
     // optional: 미설정 시 크론 라우트가 503으로 스스로 막는다(사고 방지, 앱 기동은 막지 않음).
     CRON_SECRET: z.string().min(1).optional(),
     GEMINI_API_KEY: z.string().min(1).optional(),
+    // intervals.icu 개인 API 키 암호화 비밀(#760) — 16자 이상. 미설정이면 연결 기능만 꺼진다. 바꾸면 저장된 키를 못 읽어 회원이 다시 연결해야 한다.
+    INTERVALS_KEY_SECRET: z.string().min(16).optional(),
     NODE_ENV: z.enum(["development", "production", "test"]),
     // 웹 푸시(VAPID) — 서버에서 발송 시 사용. NEXT_PUBLIC_ 금지(비밀키)
     // optional: 환경변수 미설정(빌드/일부 환경)에서도 앱이 떠야 하므로. 미설정이면 발송만 스킵.
@@ -59,6 +61,7 @@ export const env = createEnv({
     KAKAO_ROOM_ID: process.env.KAKAO_ROOM_ID,
     CRON_SECRET: process.env.CRON_SECRET,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    INTERVALS_KEY_SECRET: process.env.INTERVALS_KEY_SECRET,
     NODE_ENV: process.env.NODE_ENV,
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
     VAPID_SUBJECT: process.env.VAPID_SUBJECT,
