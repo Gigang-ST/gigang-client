@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -33,6 +33,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { WeekStart } from "@/lib/week-start";
 
+import { LegalLinks } from "@/components/common/legal-links";
 import { HelpTip } from "@/components/common/help-tip";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Body, Caption, Micro, SectionLabel } from "@/components/common/typography";
@@ -109,18 +110,6 @@ function crewItems(crewName: string, showCrewIntro: boolean): MenuItem[] {
     ...(showCrewIntro ? [{ label: `${crewName} 소개`, href: "/join", icon: LifeBuoy }] : []),
   ];
 }
-
-/**
- * 법적 문서 — 푸터로 내려간 셋.
- *
- * 예전엔 INFORMATION 섹션에서 각각 한 줄씩 차지했는데, 눌릴 일이 거의 없는 문서가 그 섹션의
- * 대부분이었다. 법적으로는 **접근 가능하면 충분**하고 푸터가 원래 이 문서들의 자리다.
- */
-const legalItems = [
-  { label: "이용약관", href: "/terms" },
-  { label: "개인정보 처리방침", href: "/privacy" },
-  { label: "운영 정책", href: "/policy" },
-];
 
 /**
  * 더보기·설정 공통 행.
@@ -462,25 +451,9 @@ export function SettingsClient({
 
       {/* ══════════ 푸터 ══════════ */}
       <div className="flex flex-col items-center gap-1.5 px-6 pt-10">
-        {/* 약관 셋. `py-2`로 세로 히트 영역을 벌린다 — 12px 글자를 손가락으로 겨냥해야 하니
-            글자 크기만 믿고 눕히면 누르기 어려운 링크가 된다. 구분점은 장식이라 aria에서 뺀다. */}
-        <div className="flex flex-wrap items-center justify-center gap-x-2">
-          {legalItems.map((item, i) => (
-            <Fragment key={item.href}>
-              {i > 0 && (
-                <span aria-hidden className="text-border">
-                  ·
-                </span>
-              )}
-              <Link
-                href={item.href}
-                className="py-2 text-xs text-muted-foreground underline underline-offset-2"
-              >
-                {item.label}
-              </Link>
-            </Fragment>
-          ))}
-        </div>
+        {/* 약관 셋 — 법적 문서는 접근 가능하면 충분하고 푸터가 원래 그 자리다(예전엔 목록 행 셋을 차지했다).
+            홈 푸터와 같은 컴포넌트다(§components/common/legal-links). */}
+        <LegalLinks align="center" />
         {/* 버전도 푸터로 왔다 — 한 줄을 차지할 만큼 자주 보는 값이 아니고, 문의할 때
             찾을 수만 있으면 된다. */}
         <div className="flex items-baseline gap-1.5">

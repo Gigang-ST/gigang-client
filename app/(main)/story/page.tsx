@@ -22,6 +22,7 @@ import { buildTitleLeadPool, pickTitleLedeStart } from "@/lib/story-title";
 import { getTeamOverview } from "@/lib/queries/team-overview";
 import { getRecentTitleGrants } from "@/lib/queries/story-titles";
 import { getTeamCfg } from "@/lib/team-cfg/read";
+import { resolveFooterContacts } from "@/lib/legal-docs";
 import { stripTitlesIfOff } from "@/lib/team-titles";
 import { getMileageRecapTeaser } from "@/lib/queries/mileage-recap";
 import { pickTeaserFaces } from "@/lib/mileage-recap";
@@ -57,7 +58,7 @@ export default function StoryPage() {
  * 헤더 렌더를 막지 않게 한다(홈의 설치 배너 패턴과 동일).
  */
 async function StoryFeedSection() {
-  const { teamId } = await getRequestTeamContext();
+  const { teamId, teamCd } = await getRequestTeamContext();
   // 현상수배 정렬 시드 — 진입마다 다른 얼굴 조합이 앞에 서게 한다. 셔플·상한은
   // `arrangeGhosts`가 맡는다(§lib/ghost-members.ts). 조회 인자라 Promise.all보다 먼저 뽑는다.
   const ghostSeed = pickGhostSeed();
@@ -90,6 +91,8 @@ async function StoryFeedSection() {
     channels,
     titlesEnabled,
     copy,
+    legalOperator,
+    legalContact,
   ] = await Promise.all([
       getStoryFeed(teamId),
       getTeamOverview(teamId),
@@ -110,6 +113,9 @@ async function StoryFeedSection() {
       getTeamCfg(teamId, "feature.titles"),
       // 팀 문구 — 크루 이름·호칭·기능 이름·말투(§lib/team-copy). 서버 메모리 캐시라 조회 비용 없음
       getTeamCopy(),
+      // 판권면 푸터 운영·문의 — 약관과 같은 팀 설정(서버 메모리 1분 캐시라 Vercel 계량 호출 없음)
+      getTeamCfg(teamId, "legal.operator"),
+      getTeamCfg(teamId, "legal.contact"),
     ]);
 
   // 칭호 기능을 끈 팀 — 피드·기록은 칭호를 실은 채 캐시돼 오므로 화면에 넘기기 직전에 걷는다(§lib/team-titles)
@@ -190,6 +196,7 @@ async function StoryFeedSection() {
       recap={recap}
       channels={channels}
       copy={pickTeamCopy(copy, STORY_COPY_KEYS)}
+      footerContacts={resolveFooterContacts({ teamCd, operator: legalOperator, contact: legalContact })}
     />
   );
 }

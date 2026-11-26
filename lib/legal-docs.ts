@@ -164,6 +164,17 @@ export function resolveContact(ctx: Pick<LegalContext, "teamCd" | "contact">): s
   return ctx.contact?.trim() || teamLegal(ctx.teamCd).contactFallback || null;
 }
 
+/**
+ * 홈 푸터의 운영·문의 줄 — 약관과 같은 값. 운영 주체가 **어디에도 없을 때만**(팀 설정도 그 팀 코드 기본값도 없음) 줄째 안 싣는다.
+ * 값이 「크루 운영진」인지로 가르지 않는다 — 운영진이 그 글자를 직접 적으면 약관엔 나오는데 푸터만 빠졌다(PR #747 리뷰).
+ */
+export type FooterContacts = { operator: string | null; contact: string | null };
+
+export function resolveFooterContacts(ctx: Pick<LegalContext, "teamCd" | "operator" | "contact">): FooterContacts {
+  const operator = ctx.operator?.trim() || teamLegal(ctx.teamCd).operatorFallback || null;
+  return { operator, contact: resolveContact(ctx) };
+}
+
 /** 번호는 실린 조항 순서대로 매긴다 — 회비 조항이 빠지면 뒤 번호가 당겨진다 */
 function numbered(sections: (Omit<LegalSection, "id"> | false)[]): LegalSection[] {
   return sections.filter((s): s is Omit<LegalSection, "id"> => s !== false).map((s, i) => ({ id: i + 1, ...s }));

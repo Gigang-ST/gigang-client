@@ -92,6 +92,7 @@ const TEAM_VOICE: Readonly<Record<string, TeamVoice>> = {
     memberNoun: "기강인",
     wordmark: "GIGANG",
     orgName: "기강 스포츠 팀",
+    gatheringKind: "러닝",
     galleryName: "깅스타그램",
     galleryLabel: "Gingstargram",
     pushPromptTitle: "🔔 기강이 빠졌군. 알림 켜라!",
@@ -260,6 +261,11 @@ export type TeamCopy = {
   /** 홈 리드 활동지수 헤드라인 — `{name}` 만 남아 있다(크루 이름은 채워 둠) */
   actvHeadlines: readonly string[];
   quips: readonly string[];
+  /**
+   * 홈 푸터 서비스 소개 — Google 브랜드 인증(#651)이 로그아웃 홈에서 찾는 「앱 목적」 문장. 조사는 이름 받침을 따른다.
+   * 기강 문장은 2026-11-17 심사를 통과한 그대로다(테스트가 지킨다).
+   */
+  serviceIntro: string;
 };
 
 export type TeamCopyInput = {
@@ -303,6 +309,9 @@ export function buildTeamCopy(input: TeamCopyInput): TeamCopy {
     cardMood: voice.cardMood ?? NEUTRAL_VOICE.cardMood,
     actvHeadlines: headlines,
     quips: [...(voice.extraQuips ?? []), ...BASE_QUIPS],
+    serviceIntro:
+      `${josa(crewName, "은/는")} ${voice.gatheringKind ? `${voice.gatheringKind} ` : ""}모임과 대회·기록을 한곳에서 관리하는 ` +
+      "크루 서비스예요. 모임 일정을 확인하고 참석을 신청하며, 대회 출전과 개인 기록을 남기고 함께 나눌 수 있어요.",
   };
 }
 
@@ -327,9 +336,11 @@ export type CardCopy = Pick<TeamCopy, (typeof CARD_COPY_KEYS)[number]>;
 export const ACTIVITY_FORM_COPY_KEYS = ["storyName", "galleryName", "quips"] as const;
 export type ActivityFormCopy = Pick<TeamCopy, (typeof ACTIVITY_FORM_COPY_KEYS)[number]>;
 
-/** 홈(전광판) 전체 — 리드·심박·갤러리·현상수배·채널·카드 */
+/** 홈(전광판) 전체 — 리드·심박·갤러리·현상수배·채널·카드·푸터(서비스 소개·© 단체명) */
 export const STORY_COPY_KEYS = [
   ...CARD_COPY_KEYS,
+  "serviceIntro",
+  "orgName",
   "storyName",
   "galleryName",
   "galleryLabel",
