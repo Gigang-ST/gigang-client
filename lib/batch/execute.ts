@@ -2,6 +2,7 @@ import { dayjs } from "@/lib/dayjs";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { batchDuesExemption } from "@/lib/batch/jobs/dues-exemption";
+import { batchIntervalsSync } from "@/lib/batch/jobs/intervals-sync";
 import { batchMileageTitles } from "@/lib/batch/jobs/mileage-titles";
 import { batchTitleGatheringDaily, batchTitleMonthly } from "@/lib/batch/jobs/titles";
 import type { BatchContext, BatchResult } from "@/lib/batch/types";
@@ -28,6 +29,9 @@ const BATCH_ACTION_MAP: Record<
 
   // 달이 끝나야 값이 정해지는 칭호(지금은 프로참석러 하나).
   TITLE_MONTHLY: (ctx, params) => batchTitleMonthly(ctx, params.base_month),
+
+  // intervals.icu 연결 회원의 활동 요약 동기화(#760) — 하루 한 번.
+  INTERVALS_SYNC: (ctx) => batchIntervalsSync(ctx),
 };
 
 export type ExecuteOutcome = {

@@ -38,6 +38,7 @@ import {
   uploadDuesXlsx,
 } from "@/lib/mcp/dues";
 import { issueCouponsViaMcp, listCouponsViaMcp } from "@/lib/mcp/coupons";
+import { WORKOUTS_DEFAULT_LIMIT, WORKOUTS_MAX_LIMIT, listMemberWorkouts } from "@/lib/mcp/intervals";
 import { COUPON_ISSUE_MAX, COUPON_TEXT_MAX, COUPON_TYPES } from "@/lib/validations/coupon";
 import { createSchPostViaMcp } from "@/lib/mcp/create-sch-post";
 import { listHyroxCompetitions, listHyroxRankings, logHyroxRecord } from "@/lib/mcp/hyrox";
@@ -197,6 +198,7 @@ async function runDuesTool<T>(
  *   - **회비 도구 6종**(#702 — `upload_dues_xlsx`·`list_dues_inbox`·`confirm_dues_txns`·`cancel_dues_txn`·
  *     `reclassify_dues_txn`·`get_dues_balances`) — 전부 admin 전용 + 회비 기능이 켜진 팀만(`runDuesTool`).
  *   - **쿠폰 도구 2종**(#712 — `issue_coupons` admin 전용 · `list_coupons` admin 전체/회원 본인 것만) — 회비 기능이 켜진 팀만(`runDuesTool`).
+ *   - **회원 운동 요약 1종**(#760 — `list_member_workouts`, admin 전용) — 회원이 intervals.icu 를 연결해 동의한 요약(날짜·종목·거리·시간·페이스)만. 키·심박·경로는 저장하지 않는다.
  *   - **내 것**(마일리지런 개인 도구 7종, #497) — 대상 멤버를 인자로 받지 않고 `ctx.mem_id` 로만
  *     스코프한다. admin 이어도 남의 기록에는 손대지 못한다.
  */
@@ -1176,6 +1178,40 @@ const handler = createMcpHandler(
         runDuesTool(extra, (ctx, supabase) => listCouponsViaMcp(supabase, ctx, { memId: args.mem_id, status: args.status })),
     );
 
+    server.registerTool(
+      "list_member_workouts",
+      {
+        title: "회원 운동 요약 조회",
+        description:
+          "회원이 intervals.icu 를 연결해 두었다면 그 회원의 최근 운동 **요약**(날짜·종목·거리·시간·페이스)을 봅니다. " +
+          "운영진(admin) 전용입니다. 심박·경로 같은 상세는 저장하지 않아 볼 수 없고, API 키도 나가지 않습니다. " +
+          "연결하지 않은 회원은 connected=false 로 답합니다. member_id(uuid) 또는 name(이름 완전일치) 중 하나를 주세요 — 동명이인이면 member_id 로 다시 부릅니다. " +
+          "회원의 운동 기록이니 필요한 만큼만 사용자에게 보여 주세요.",
+        inputSchema: {
+          member_id: z.string().uuid().optional(),
+          name: z.string().min(1).optional(),
+          from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("이 날 이후(YYYY-MM-DD)"),
+          to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("이 날 이전(YYYY-MM-DD)"),
+          limit: z
+            .number()
+            .int()
+            .min(1)
+            .max(WORKOUTS_MAX_LIMIT)
+            .optional()
+            .describe(`최신순 최대 건수(기본 ${WORKOUTS_DEFAULT_LIMIT}, 최대 ${WORKOUTS_MAX_LIMIT})`),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, (ctx, supabase) =>
+          listMemberWorkouts(supabase, ctx, {
+            memberId: args.member_id,
+            name: args.name,
+            from: args.from,
+            to: args.to,
+            limit: args.limit,
+          }),
+        ),
+    );
   },
   {
     serverInfo: { name: "gigang-ops-mcp", version: "0.1.0" },
