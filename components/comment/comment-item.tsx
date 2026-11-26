@@ -198,7 +198,7 @@ export function CommentItem({
             </div>
           </div>
         ) : (
-          <p className="mt-0.5 text-sm leading-relaxed break-words">
+          <p className="mt-0.5 text-sm leading-relaxed break-words whitespace-pre-wrap">
             {renderMentions(comment.cont_txt, members)}
           </p>
         )}

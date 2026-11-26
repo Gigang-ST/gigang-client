@@ -29,7 +29,7 @@
 4. 안 쓰는 토큰은 같은 화면에서 **폐기**할 수 있습니다. 폐기 즉시 접속이 차단됩니다.
 
 - 토큰은 **본인 것만** 보이고 폐기할 수 있습니다.
-- 조회는 대체로 팀 멤버면 누구나. **알림 발송(`send_push`)·단톡방 공지(`send_kakao_notice`)·멤버 참석 현황(`list_members_attendance`)은 owner/admin 역할만** 됩니다(§4 권한 경계).
+- 조회는 대체로 팀 멤버면 누구나. **알림 발송(`send_push`)·단톡방 공지(`send_kakao_notice`)·단톡방 참여자 대조(`list_kakao_room_members`)·모임 참석 신청·취소 이력(`list_gathering_attendance_history`)·노쇼 처리·이력(`mark_gathering_noshow`·`list_member_noshows`)·멤버 참석 현황(`list_members_attendance`)은 owner/admin 역할만** 됩니다(§4 권한 경계).
 
 ---
 
@@ -71,6 +71,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 |------|------|---------|------|
 | `whoami` | — | 내 신원(mem_id·team·admin 여부) 확인 | 멤버 |
 | `list_today_gatherings` | `date?`(YYYY-MM-DD, 기본 오늘) | 오늘(또는 지정일) 모임 + **모임 설명(난이도)** + 각 참석자 수 | 멤버 |
+| `list_my_gatherings` | `from?`·`to?`(YYYY-MM-DD, KST, 기본 오늘 ~ +30일) | **내가 참석 신청한** 모임(시작 시각 오름차순) — 모임 id·이름·종류·시작/종료·장소·참석자 수·내 신청 시각. 삭제·취소된 모임과 참석 취소한 모임은 빠짐. **본인 것만**(admin 이어도) | 멤버 |
 | `list_recent_members` | `limit?`(기본 10) | 최근 가입 멤버 + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적)** + **시작 정보(경력·주간 거리·자기신고 기록·입력 시각)는 admin 만** | 멤버 |
 | `list_members_attendance` | `limit?` | 멤버별 참석 횟수·마지막 참석일(오래 안 나온 순) | **admin** |
 | `get_member_profile` | `member_id`(uuid) 또는 `name` | 멤버 프로필(이름·가입일·역할·소개·아바타 + **생일·성별은 admin 만**) + **러닝 프로필(가까운 역·평균 거리·페이스·가입 목적)** + **시작 정보(경력·주간 거리·자기신고 기록·입력 시각)는 admin 만** | 멤버 |
@@ -78,6 +79,10 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `list_push_status` | — | 멤버별 웹푸시 구독 여부 | 멤버 |
 | `send_push` | `member_ids`(uuid[]), `title`, `message` | 지정 멤버에게 인앱+웹푸시 발송 | **admin** |
 | `send_kakao_notice` | `message`(최대 4000자), `mentions?`(이름[]), `request_id?`, `dry_run?` | 크루 카톡 단톡방에 노티봇 공지(자유 문구) — 방은 서버 설정으로 고정, 어드민 발송 이력에 남음 | **admin** |
+| `list_kakao_room_members` | — | 크루 단톡방 참여자와 사이트 활성 회원을 **이름으로 대조** — `in_room`(둘 다)·`not_in_room`(사이트엔 있고 단톡엔 없음)·`ambiguous`(동명이인)·`room_only`(단톡에만) + 목록 완전성(`known`·`total`·`synced_at`). 읽기 전용, 이름은 응답에만 실리고 로그·감사엔 건수만 | **admin** |
+| `list_gathering_attendance_history` | `gathering_id` | 모임 하나의 **현재 참석자(신청 시각)** 와 **취소 이력**(누가·취소 시각·주체·사유)을 돌려줍니다. 각 취소에 `timing`(`before_start` 시작 전 / `after_start` 시작 뒤)과 `minutes_from_start`가 붙어 **노쇼 후보**(시작 뒤 취소)를 바로 가릴 수 있습니다(#758). 읽기 전용 | **admin** |
+| `mark_gathering_noshow` | `gathering_id`, `member_id`/`member_name`, `reason`(필수), `dry_run`, `notify` | 노쇼 회원을 **참석에서 빼고 사유를 남깁니다**(#759). 참석 행이 지워져 출석·PB클래스 집계에서 빠지고, 처리자·시각·사유가 취소 이력에 남습니다. **먼저 `dry_run=true`** 로 대상·처리 후 노쇼 횟수를 확인하세요. 알림은 기본 없음(`notify=true` 일 때만 대기열 승급·빈 자리 알림, 당사자에겐 안 감). 시작 전 모임이면 `warnings` | **admin** |
+| `list_member_noshows` | `member_id`(선택) | 회원별 노쇼 횟수·내역(모임·처리 시각·사유·처리자), 횟수 많은 순. 읽기 전용 | **admin** |
 | `create_gathering` | `gthr_nm`, `gthr_type_enm`, `sprt_cd`, `stt_at`, `end_at?`, `loc_txt?`, `desc_txt?`, `max_prt_cnt?`, `dry_run?` | 새 모임(벙) 개설 — 작성자 자동 참석 + 팀 전원 알림 | **admin** |
 | `update_gathering` | `gathering_id`(uuid) + 바꿀 필드만(`gthr_nm`, `stt_at`, `end_at`, `loc_txt`, `max_prt_cnt`, `desc_txt`), `dry_run?`, `notify?` | 모임 수정 — 바뀐 필드 목록·전/후 반환. 알림은 `notify: true` 일 때만 | **모임 작성자 또는 admin** |
 | `create_sch_post` | `sch_nm`, `post_type`(`race_entry`·`sale`·`session`·`general`), `evt_stt_at`, `evt_end_at?`, `url?`, `cont_txt?`, `dry_run?` | 일정 탭에 소식(대회 접수 정보·판매·세션·일반) 등록 — 팀 전원 새 정보 알림 | 멤버 (앱과 같음) |
@@ -89,6 +94,7 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `get_dues_balances` | `status?`(`미납`·`정상`·`예치`), `limit?` | 활성 회원 회비 잔액(예치/미납) 현황 + 인원·합계 | **admin** · 회비 사용 팀 |
 | `issue_coupons` | `items`(`mem_id`·`type`·`text`·`amount?`·`exp_dt?`), `dry_run?` | 쿠폰(싱글렛 할인·대회 참가지원·프로젝트 참가비 할인·기타)을 회원별로 기록 — 장부일 뿐 자동 차감 없음 | **admin** · 회비 사용 팀 |
 | `list_coupons` | `mem_id?`(admin), `status?`(`active`·`used`·`expired`) | 쿠폰 목록 — admin 은 팀 전체, 일반 회원은 내 쿠폰만 | 인증 멤버 · 회비 사용 팀 |
+| `list_member_workouts` | `member_id`(uuid) 또는 `name`, `from?`·`to?`(YYYY-MM-DD), `limit?`(기본 30, 최대 100) | intervals.icu 를 연결한 회원의 최근 운동 **요약**(날짜·종목·거리·시간·페이스). 연결 안 한 회원은 `connected: false` — 심박·경로 상세와 API 키는 저장·반환하지 않음(#760) | **admin** |
 
 ### 대회 도구 (#700)
 
@@ -221,11 +227,15 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | `list_gathering_non_attendees` 의 **참석 횟수·마지막 참석시각** (필드만) | 위 `list_members_attendance` 와 **같은 통계**입니다. 도구 하나만 막으면 옆 도구로 그대로 나갑니다 |
 | `send_push` (도구째) | 쓰기 — 되돌릴 수 없고 크루원에게 직접 나갑니다 |
 | `send_kakao_notice` (도구째) | 쓰기 — 되돌릴 수 없고 단톡방 크루 전원에게 보입니다 |
+| `mark_gathering_noshow`·`list_member_noshows` (도구째) | 참석을 빼는 쓰기와 회원별 노쇼 이력은 운영 판단용입니다(#759) |
+| `list_gathering_attendance_history` (도구째) | 누가 언제 참석을 취소했는지는 노쇼 판단용 운영 정보입니다(#758) |
+| `list_kakao_room_members` (도구째) | 단톡방 참여자 이름은 개인정보입니다(#749). 읽기 전용이라도 admin 에게만 |
 | `create_gathering` (도구째) | 쓰기 — 만드는 순간 팀 전원에게 새 모임 알림이 나갑니다 |
 | `create_competition` (도구째) | 쓰기 — 대회는 팀 공용 데이터라 마구 만들면 목록이 오염됩니다. 앱의 서버 액션보다 좁게 둡니다 |
 | `register_competition` 의 **`member_id`·`member_name`**(남을 대신 신청만) | 앱에서 남의 참가 신청을 넣는 화면은 없고(관리자 화면은 목록·삭제), 본인 신청은 멤버 누구나 합니다 |
 | 회비 도구 6종 `upload_dues_xlsx`·`list_dues_inbox`·`confirm_dues_txns`·`cancel_dues_txn`·`reclassify_dues_txn`·`get_dues_balances` (도구째) | 회비 거래·잔액은 앱에서도 관리자에게만 보이고, 확정은 개인 잔액을 바꿉니다. 회비 기능이 꺼진 팀(`feature.dues=false`)은 admin 이어도 거부 |
 | 쿠폰 발급 `issue_coupons` (도구째) | 쿠폰 발급은 운영진 업무입니다(앱 「회비 > 쿠폰」과 같은 경계). `list_coupons` 는 admin 이 아니면 인자와 무관하게 **내 쿠폰만** 돌려줍니다 |
+| `list_member_workouts` (도구째) | 회원이 intervals.icu 를 연결하며 「운영진은 날짜·종목·거리·시간·페이스 요약만 본다」에 동의한 범위입니다(연결 화면에 문구 명시). 일반 회원 도구엔 열지 않습니다 — 남의 운동 기록이라서 |
 | `log_hyrox_record` 의 **`member_id`**(남의 기록 등록만) | 앱에서 남의 대회 기록을 넣는 건 관리자 「대신 등록」뿐입니다. 본인 기록은 멤버 누구나 넣습니다 |
 
 `update_gathering` 은 admin 전용이 아니라 **작성자 또는 admin** 입니다(앱의 수정 권한과 같습니다).
@@ -301,6 +311,16 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 - 정원을 **늘리면** 앱처럼 대기자가 참석으로 올라갑니다(`promoted_cnt`). 승급 자체는 `notify` 와 무관하게 일어나고,
   승급 알림·빈 자리 알림만 `notify: true` 일 때 나갑니다.
 
+### 노쇼 처리(`mark_gathering_noshow`) — 참석 빼기 + 사유
+
+- 모임이 끝난 뒤 참석을 눌러 놓고 오지 않은 회원을 **참석에서 빼고 사유를 남깁니다.** 순서는
+  ① `list_gathering_attendance_history` 로 시작 뒤 취소·미취소자 가리기 → ② `mark_gathering_noshow` `dry_run: true` →
+  ③ 사용자 확인 뒤 `dry_run` 없이 실행. 사유(`reason`)는 필수입니다(예: "노쇼").
+- 참석 행(`gthr_attd_rel`)이 지워지므로 **출석·PB클래스 집계는 빠진 참석을 세지 않습니다.** 처리자·시각·사유는
+  취소 이력(`gthr_attd_hist.noshow_yn`)에 남고, `list_member_noshows` 가 회원별 횟수·내역을 돌려줍니다.
+- 알림은 기본으로 안 보냅니다. `notify: true` 일 때만 이 취소로 생긴 대기열 승급·빈 자리 알림이 나가며, 노쇼 당사자에겐 안 갑니다.
+- 앱 관리자 화면(모임 관리 → 참석자)의 「노쇼 처리」와 같은 코어(`lib/gathering/noshow.ts`)입니다.
+
 ### 일정 소식 등록(`create_sch_post`) — `create_gathering` 과 같은 약속
 
 - **일시는 한국시간 `YYYY-MM-DD HH:mm`.** `Z`·`+09:00` 표기, 날짜만(`2026-11-20`), "다음 주 월요일"
@@ -372,6 +392,11 @@ AI에게 자연어로 물으면 아래 도구를 알아서 호출합니다. **"�
 | 같은 `request_id` 재호출인데 `sent` 로 두 번 남음 | 이 기능 전(#631 이전)에 쌓인 이력이거나, 허브가 그 응답에 `duplicate` 를 싣지 않은 경우입니다. 단톡방에 실제로 몇 건 갔는지는 허브 발송 이력에서 확인하세요. |
 | `send_kakao_notice`가 `failed` | `failure.code` 를 보세요. `mention_name_unknown`·`mention_name_ambiguous` 는 태그 이름을 고쳐 **새로** 보내고, `retryable: true`(타임아웃·네트워크·429·5xx)면 **같은 `request_id`** 로 다시 부르거나 `/admin/kakao` 의 「다시 보내기」를 쓰세요. 새 `request_id` 로 보내면 이미 접수됐던 건이 한 번 더 나갈 수 있습니다. `idempotency_conflict` 는 이미 접수된 건입니다 — 다시 보내지 마세요. |
 | 어드민 「다시 보내기」로 보낸 공지에 태그가 빠짐 | 발송 이력은 본문만 저장하고 태그 목록은 저장하지 않아, 다시 보내기는 태그 없이 `@이름` 글자로 나갑니다. 태그가 중요하면 「다시 보내기」 대신 MCP 에서 같은 `request_id`·`mentions` 로 다시 부르세요. |
+| `list_kakao_room_members`가 거부됨 | 단톡방 참여자 대조는 owner/admin 전용입니다. |
+| `list_kakao_room_members`가 `skipped` | 이 환경엔 노티봇 설정(허브 주소·API 키)이나 이 팀의 단톡방 설정이 없습니다. |
+| `list_kakao_room_members`가 `failed` | `failure.code` 를 보세요. 권한 오류(401/403 계열)면 노티봇 API 키에 `rooms:read` 스코프가 없는 것입니다 — 허브 콘솔에서 사람이 받아야 합니다. `RoomUnresolved` 는 팀 설정 `kakao.room_id` 가 이름이라 방을 하나로 못 고른 것 — 방 고정 ID 로 바꾸세요. |
+| `list_kakao_room_members` 에 `incomplete: true` | 허브가 아는 인원(`known`)이 카톡 전체 인원(`total`)보다 적습니다. 오픈채팅은 말하거나 태그된 적 없는 사람을 허브가 모를 수 있어 `not_in_room` 은 확정이 아닙니다. `synced_at` 이 오래됐으면 허브 동기화를 기다리세요. |
+| `list_kakao_room_members` 에서 같은 사람이 `not_in_room` 과 `room_only` 에 둘 다 나옴 | 카톡 표시 이름과 사이트 실명이 달라 이름으로 못 맞춘 것입니다. 숨기지 않고 양쪽에 보여 주니 사람이 짝지어 주세요. 동명이인은 `ambiguous` 로 빠집니다. |
 | `create_gathering`이 일시를 거부함 | 한국시간 `YYYY-MM-DD HH:mm` 로 주세요. `Z`·`+09:00` 표기와 "내일 아침" 같은 자연어는 받지 않습니다. |
 | 모임을 잘못 만들었음 | 응답의 `gthr_url` 로 들어가 웹에서 수정·취소하세요(MCP엔 수정·삭제 도구가 없습니다). 이미 나간 알림은 되돌릴 수 없습니다. |
 | `create_sch_post`가 일시를 거부함 | 한국시간 `YYYY-MM-DD HH:mm` 로 주세요. `Z`·`+09:00`·날짜만·자연어는 받지 않습니다. 종료가 시작보다 앞서도 거부됩니다. |

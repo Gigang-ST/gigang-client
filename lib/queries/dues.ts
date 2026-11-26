@@ -150,6 +150,8 @@ export type ProcessedTxn = {
   prjName: string | null;
   cfmAt: string;
   cfmByName: string | null;
+  /** 나눠 넣은 거래(#754)의 한 줄이면 원거래 id — 취소하면 같이 나눈 줄 전체가 내려간다 */
+  splitParentId: string | null;
 };
 
 export type ProcessedPage = { rows: ProcessedTxn[]; total: number };
@@ -167,7 +169,7 @@ export async function getProcessedTxns(filter: ProcessedFilter): Promise<Process
   let q = db
     .from("fee_txn_hist")
     .select(
-      "txn_id, txn_dt, txn_amt, raw_name, fee_item_cd, cfm_at, mem:mem_mst!fk_fee_txn_hist__mem_mst(mem_nm), cfm_by:mem_mst!fk_fee_txn_hist__cfm_mem_mst(mem_nm), prj:fee_prj_mst!fk_fee_txn_hist__fee_prj_mst(prj_nm)",
+      "txn_id, txn_dt, txn_amt, raw_name, fee_item_cd, cfm_at, split_parent_id, mem:mem_mst!fk_fee_txn_hist__mem_mst(mem_nm), cfm_by:mem_mst!fk_fee_txn_hist__cfm_mem_mst(mem_nm), prj:fee_prj_mst!fk_fee_txn_hist__fee_prj_mst(prj_nm)",
       { count: "exact" },
     )
     .eq("team_id", teamId)
@@ -206,6 +208,7 @@ export async function getProcessedTxns(filter: ProcessedFilter): Promise<Process
       prjName: prjNameOf(r.prj),
       cfmAt: r.cfm_at as string,
       cfmByName: nameOf(r.cfm_by),
+      splitParentId: r.split_parent_id,
     })),
   };
 }

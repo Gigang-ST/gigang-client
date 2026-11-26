@@ -308,7 +308,16 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function OnboardingSection({ memId, teamId }: { memId: string; teamId: string }) {
+function OnboardingSection({
+  memId,
+  teamId,
+  runningProfileEnabled,
+}: {
+  memId: string;
+  teamId: string;
+  /** 팀이 러닝 프로필을 쓰는가(팀 설정 feature.running_profile) — 끈 팀은 역·거리·페이스를 읽지도 그리지도 않는다 */
+  runningProfileEnabled: boolean;
+}) {
   const [profile, setProfile] = useState<OnboardingProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -320,11 +329,13 @@ function OnboardingSection({ memId, teamId }: { memId: string; teamId: string })
     // RLS(mem_onbd_prf_select_team_admin · team_mem_onbd_rel_select_team_admin)가 팀 관리자에게
     // 팀원 온보딩 조회를 허용한다. 러닝 프로필은 사람 것, 가입 목적·유입 경로는 **이 팀 것**만 읽는다.
     Promise.all([
-      supabase
-        .from("mem_onbd_prf")
-        .select("near_stn_nm, avg_run_dist_km, avg_pace_cd")
-        .eq("mem_id", memId)
-        .maybeSingle(),
+      runningProfileEnabled
+        ? supabase
+            .from("mem_onbd_prf")
+            .select("near_stn_nm, avg_run_dist_km, avg_pace_cd")
+            .eq("mem_id", memId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
       supabase
         .from("team_mem_onbd_rel")
         .select("join_purp_cds, join_purp_txt, join_src_cd, join_src_txt")
@@ -347,7 +358,7 @@ function OnboardingSection({ memId, teamId }: { memId: string; teamId: string })
     return () => {
       alive = false;
     };
-  }, [memId, teamId]);
+  }, [memId, teamId, runningProfileEnabled]);
 
   const paceLabel = profile?.avg_pace_cd
     ? (PACE_LABELS[profile.avg_pace_cd as keyof typeof PACE_LABELS] ??
@@ -365,14 +376,15 @@ function OnboardingSection({ memId, teamId }: { memId: string; teamId: string })
 
   return (
     <div className="flex flex-col gap-3">
-      <SectionLabel>러닝 프로필</SectionLabel>
+      <SectionLabel>{runningProfileEnabled ? "러닝 프로필" : "가입 정보"}</SectionLabel>
       {loading ? (
         <Skeleton className="h-20 w-full rounded-2xl" />
       ) : !profile ? (
         <EmptyState variant="inline" message="온보딩 정보 없음" />
       ) : (
         <CardItem className="flex flex-col gap-2.5 p-3.5">
-          {/* 역 · 거리 · 페이스 — 한 줄 미니 스탯 */}
+          {/* 역 · 거리 · 페이스 — 한 줄 미니 스탯(러닝 프로필을 쓰는 팀만) */}
+          {runningProfileEnabled && (
           <div className="flex flex-wrap gap-1.5">
             <MiniStat label="역" value={profile.near_stn_nm || "-"} />
             <MiniStat
@@ -385,6 +397,7 @@ function OnboardingSection({ memId, teamId }: { memId: string; teamId: string })
             />
             <MiniStat label="페이스" value={paceLabel ?? "-"} />
           </div>
+          )}
 
           {/* 유입 경로 */}
           {srcLabel && (
@@ -858,6 +871,7 @@ export function AdminMembersClient({
   initialTeamMemId,
   duesEnabled,
   titlesEnabled,
+  runningProfileEnabled,
   viewer,
   cmmCdRows,
   participationDataStart,
@@ -868,6 +882,8 @@ export function AdminMembersClient({
   duesEnabled: boolean;
   /** 이 팀이 칭호를 쓰는가(팀 설정 `feature.titles`) — 안 쓰면 멤버 상세의 칭호 수여 칸을 안 그린다 */
   titlesEnabled: boolean;
+  /** 팀 설정 feature.running_profile — 끈 팀은 멤버 상세에 러닝 프로필(역·거리·페이스)을 안 그린다 */
+  runningProfileEnabled: boolean;
   /** 지금 화면을 보는 관리자 — 운영진 보호 판정(크루장만 운영진을 처리) */
   viewer: ManageActor;
   /** 공통코드 — 대회 신청 줄 스포츠 이름 */
@@ -1595,7 +1611,12 @@ export function AdminMembersClient({
               </div>
 
               {/* 온보딩 러닝 프로필 — 회원별 remount로 이전 회원 값 잔상 방지 */}
-              <OnboardingSection key={selectedMember.id} memId={selectedMember.id} teamId={teamId} />
+              <OnboardingSection
+                key={selectedMember.id}
+                memId={selectedMember.id}
+                teamId={teamId}
+                runningProfileEnabled={runningProfileEnabled}
+              />
 
               {/* 참여 현황 — 모임·대회 참여 요약/월별/최근 활동 */}
               <ParticipationSection

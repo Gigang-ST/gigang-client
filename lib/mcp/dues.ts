@@ -798,6 +798,10 @@ export async function reclassifyDuesTxn(db: Db, ctx: OperatorContext, input: Rec
   // 사전 검증(쓰기 없음): 취소 가능 + 새 값 확정 가능
   const preCancel = await cancelTransactionCore(db, { teamId: ctx.team_id, actorMemId: ctx.mem_id, txnId: t.txn_id, dryRun: true });
   if (!preCancel.ok) throw new ToolInputError(preCancel.message);
+  // 나눠 넣은 거래(#754)의 한 줄은 취소하면 줄 전체가 내려가 한 건만 재분류할 수 없다 — 앱에서 처리.
+  if ("split" in preCancel && preCancel.split) {
+    throw new ToolInputError("나눠 넣은 거래의 한 줄은 재분류할 수 없습니다. 앱에서 확정 취소 후 다시 처리하세요.");
+  }
   const preConfirm = await confirmTransactionsCore(db, {
     teamId: ctx.team_id,
     actorMemId: ctx.mem_id,

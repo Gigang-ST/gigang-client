@@ -20,6 +20,9 @@ import {
 } from "@/lib/mcp/competition";
 import { createGatheringViaMcp } from "@/lib/mcp/create-gathering";
 import { updateGatheringViaMcp } from "@/lib/mcp/update-gathering";
+import { listKakaoRoomMembers } from "@/lib/mcp/list-kakao-room-members";
+import { listGatheringAttendanceHistory } from "@/lib/mcp/gathering-attendance-history";
+import { listMemberNoshowsViaMcp, markGatheringNoshowViaMcp } from "@/lib/mcp/gathering-noshow";
 import {
   BALANCES_DEFAULT_LIMIT,
   INBOX_DEFAULT_LIMIT,
@@ -35,6 +38,7 @@ import {
   uploadDuesXlsx,
 } from "@/lib/mcp/dues";
 import { issueCouponsViaMcp, listCouponsViaMcp } from "@/lib/mcp/coupons";
+import { WORKOUTS_DEFAULT_LIMIT, WORKOUTS_MAX_LIMIT, listMemberWorkouts } from "@/lib/mcp/intervals";
 import { COUPON_ISSUE_MAX, COUPON_TEXT_MAX, COUPON_TYPES } from "@/lib/validations/coupon";
 import { createSchPostViaMcp } from "@/lib/mcp/create-sch-post";
 import { listHyroxCompetitions, listHyroxRankings, logHyroxRecord } from "@/lib/mcp/hyrox";
@@ -54,6 +58,7 @@ import {
   getMemberProfile,
   listGatheringNonAttendees,
   listMembersAttendance,
+  listMyGatherings,
   listPushStatus,
   listRecentMembers,
   listTodayGatherings,
@@ -182,7 +187,7 @@ async function runDuesTool<T>(
  *
  * 권한: 도구 대부분은 인증된 팀 멤버면 호출할 수 있고, **앱이 관리자에게만 보여주는 것**만
  *   admin 으로 좁힌다(#496) — `send_push`·`send_kakao_notice`·`list_members_attendance`·
- *   `create_gathering` 은 도구째, `get_member_profile` 의 생년월일·성별(+ `list_recent_members` 포함 시작 정보)과 `list_gathering_non_attendees` 의 참석
+ *   `list_kakao_room_members`·`list_gathering_attendance_history`·`mark_gathering_noshow`·`list_member_noshows`·`create_gathering` 은 도구째, `get_member_profile` 의 생년월일·성별(+ `list_recent_members` 포함 시작 정보)과 `list_gathering_non_attendees` 의 참석
  *   통계는 필드 단위로. 판정은 전부 `ctx.is_admin` 이며, 게이트는 도구 핸들러가 아니라
  *   **쿼리·발송 함수 안**에 있다(호출부가 늘어도 새지 않게).
  *
@@ -193,6 +198,7 @@ async function runDuesTool<T>(
  *   - **회비 도구 6종**(#702 — `upload_dues_xlsx`·`list_dues_inbox`·`confirm_dues_txns`·`cancel_dues_txn`·
  *     `reclassify_dues_txn`·`get_dues_balances`) — 전부 admin 전용 + 회비 기능이 켜진 팀만(`runDuesTool`).
  *   - **쿠폰 도구 2종**(#712 — `issue_coupons` admin 전용 · `list_coupons` admin 전체/회원 본인 것만) — 회비 기능이 켜진 팀만(`runDuesTool`).
+ *   - **회원 운동 요약 1종**(#760 — `list_member_workouts`, admin 전용) — 회원이 intervals.icu 를 연결해 동의한 요약(날짜·종목·거리·시간·페이스)만. 키·심박·경로는 저장하지 않는다.
  *   - **내 것**(마일리지런 개인 도구 7종, #497) — 대상 멤버를 인자로 받지 않고 `ctx.mem_id` 로만
  *     스코프한다. admin 이어도 남의 기록에는 손대지 못한다.
  */
@@ -261,6 +267,32 @@ const handler = createMcpHandler(
       async (args, extra) =>
         runTool(extra, (ctx, supabase) =>
           listTodayGatherings(supabase, ctx.team_id, args.date),
+        ),
+    );
+
+    server.registerTool(
+      "list_my_gatherings",
+      {
+        title: "내가 참석 신청한 모임",
+        description:
+          "내가 참석 신청한 우리 팀 모임 목록을 시작 시각 오름차순으로 반환합니다(KST 기준 기간, 기본 오늘 ~ +30일). 삭제·취소된 모임과 참석을 취소한 모임은 빠집니다. 대상은 항상 본인뿐입니다. 날짜는 YYYY-MM-DD.",
+        inputSchema: {
+          from: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD 형식이어야 합니다.")
+            .optional(),
+          to: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD 형식이어야 합니다.")
+            .optional(),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, (ctx, supabase) =>
+          listMyGatherings(supabase, ctx.team_id, ctx.mem_id, {
+            from: args.from,
+            to: args.to,
+          }),
         ),
     );
 
@@ -416,6 +448,87 @@ const handler = createMcpHandler(
       },
       async (args, extra) =>
         runTool(extra, (ctx, supabase) => sendKakaoNotice(supabase, ctx, args)),
+    );
+
+    server.registerTool(
+      "list_kakao_room_members",
+      {
+        title: "단톡방 참여자 대조",
+        description:
+          "크루 카카오톡 단톡방 참여자와 사이트 활성 회원을 **이름으로** 맞춰 in_room(둘 다 있음) / not_in_room(사이트엔 있는데 단톡에 없음) / " +
+          "ambiguous(동명이인 — 단정 못 함) / room_only(단톡에만 있음)로 나눠 돌려줍니다. 읽기 전용, 운영진(admin) 전용입니다(참여자 이름은 개인정보). " +
+          "카톡 표시 이름이 사이트 실명과 다르면 못 맞춥니다 — 그 사람은 not_in_room 과 room_only 에 둘 다 나오니 사람이 짝지어 주세요. " +
+          "completeness 에 허브가 아는 인원(known)·카톡 전체 인원(total)·마지막 동기화 시각(synced_at)이 있습니다. incomplete=true 면 not_in_room 은 확정이 아닙니다. " +
+          "status 는 ok / skipped(이 환경엔 노티봇 미설정 또는 방 미설정) / failed(failure 에 허브 오류 코드 — 예: API 키에 rooms:read 권한이 없음) 입니다.",
+        inputSchema: {},
+      },
+      async (_args, extra) =>
+        runTool(extra, (ctx, supabase) => listKakaoRoomMembers(supabase, ctx)),
+    );
+
+    server.registerTool(
+      "list_gathering_attendance_history",
+      {
+        title: "모임 참석 신청·취소 이력",
+        description:
+          "모임 하나의 **현재 참석자(신청 시각)** 와 **취소 이력(누가·언제 취소·사유)** 을 돌려줍니다 — 노쇼 판단용입니다. " +
+          "각 취소에 timing(before_start 시작 전 / after_start 시작 뒤)과 minutes_from_start(시작 기준 분, 시작 뒤면 +)가 붙으니 " +
+          "'시작 뒤에 취소한 사람'은 timing=after_start 로 가리세요. by=admin 이면 운영진이 뺀 것입니다. " +
+          "applied_at 은 취소된 사람의 경우 이 기능이 생긴 뒤 취소분부터 있습니다(그 전은 null). 같은 사람이 여러 번 취소했으면 전부 나오고 rejoined=true 면 지금 다시 참석 중입니다. " +
+          "gathering_id 는 list_today_gatherings 등으로 확인하세요. 읽기 전용, 운영진(admin) 전용입니다.",
+        inputSchema: {
+          gathering_id: z.string().uuid("gathering_id 는 uuid 여야 합니다."),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, (ctx, supabase) => listGatheringAttendanceHistory(supabase, ctx, args)),
+    );
+
+    server.registerTool(
+      "mark_gathering_noshow",
+      {
+        title: "모임 노쇼 처리(참석 빼기 + 사유)",
+        description:
+          "모임에 참석을 눌러 놓고 오지 않은 회원(노쇼)을 **참석에서 빼고 사유를 남깁니다**. 운영진(admin) 전용입니다. " +
+          "gathering_id(uuid)와 회원(member_id 또는 member_name — 이 모임 **현재 참석자** 이름 완전일치, 동명이인이면 처리하지 않고 candidates 만 돌려줌), " +
+          "reason(**필수**, 예: '노쇼', 500자 이내)을 주세요. 참석 행이 지워지므로 출석·PB클래스 집계에서 빠지고, 처리자·시각·사유가 취소 이력에 남으며 회원별 노쇼 횟수(list_member_noshows)에 잡힙니다. " +
+          "**먼저 dry_run=true 로 불러** 대상 회원·모임·처리 후 노쇼 횟수를 사용자에게 확인받은 뒤 실제로 처리하세요. " +
+          "알림은 기본으로 보내지 않습니다 — notify=true 일 때만 이 취소로 대기열에서 올라온 사람·빈 자리 알림이 나가고, 노쇼 당사자에게는 알림이 가지 않습니다. " +
+          "모임이 아직 시작 전이면 warnings 에 경고가 붙습니다(노쇼는 시작 뒤 처리 — 미리 빼는 건 앱 관리자 화면의 참석 취소). " +
+          "누가 시작 뒤에 취소했는지는 list_gathering_attendance_history 로 먼저 가려 보세요.",
+        inputSchema: {
+          gathering_id: z.string().uuid("gathering_id 는 uuid 여야 합니다."),
+          member_id: z.string().uuid().optional().describe("노쇼 처리할 회원 uuid"),
+          member_name: z.string().max(50).optional().describe("노쇼 처리할 회원 이름(이 모임 참석자 중 완전일치)"),
+          reason: z.string().min(1, "사유를 입력하세요.").max(500).describe("노쇼 사유(필수). 예: '노쇼'"),
+          dry_run: z.boolean().optional().describe("true 면 처리하지 않고 대상·결과만 미리 봅니다."),
+          notify: z.boolean().optional().describe("true 일 때만 대기열 승급·빈 자리 알림을 보냅니다. 기본 false."),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, async (ctx, supabase) => {
+          const result = await markGatheringNoshowViaMcp(supabase, ctx, args);
+          if (result.status === "removed") {
+            // 앱 관리자 참석 취소와 같은 무효화 — 홈 캘린더 칩·모임 상세의 참석자 수
+            revalidateTag(teamCacheTag(HOME_CALENDAR_CACHE_TAG, ctx.team_id), "max");
+            revalidatePath(`/gatherings/${args.gathering_id}`);
+          }
+          return result;
+        }),
+    );
+
+    server.registerTool(
+      "list_member_noshows",
+      {
+        title: "회원별 노쇼 횟수·내역",
+        description:
+          "노쇼 처리된 기록을 회원별로 모아 횟수 많은 순으로 돌려줍니다(나중 정예·패널티 판단용). " +
+          "각 내역에 모임 이름·시작 시각·처리 시각·사유·처리한 운영진이 있습니다. member_id 를 주면 그 회원만. 읽기 전용, 운영진(admin) 전용입니다.",
+        inputSchema: {
+          member_id: z.string().uuid().optional().describe("한 회원만 볼 때"),
+        },
+      },
+      async (args, extra) => runTool(extra, (ctx, supabase) => listMemberNoshowsViaMcp(supabase, ctx, args)),
     );
 
     server.registerTool(
@@ -1065,6 +1178,40 @@ const handler = createMcpHandler(
         runDuesTool(extra, (ctx, supabase) => listCouponsViaMcp(supabase, ctx, { memId: args.mem_id, status: args.status })),
     );
 
+    server.registerTool(
+      "list_member_workouts",
+      {
+        title: "회원 운동 요약 조회",
+        description:
+          "회원이 intervals.icu 를 연결해 두었다면 그 회원의 최근 운동 **요약**(날짜·종목·거리·시간·페이스)을 봅니다. " +
+          "운영진(admin) 전용입니다. 심박·경로 같은 상세는 저장하지 않아 볼 수 없고, API 키도 나가지 않습니다. " +
+          "연결하지 않은 회원은 connected=false 로 답합니다. member_id(uuid) 또는 name(이름 완전일치) 중 하나를 주세요 — 동명이인이면 member_id 로 다시 부릅니다. " +
+          "회원의 운동 기록이니 필요한 만큼만 사용자에게 보여 주세요.",
+        inputSchema: {
+          member_id: z.string().uuid().optional(),
+          name: z.string().min(1).optional(),
+          from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("이 날 이후(YYYY-MM-DD)"),
+          to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("이 날 이전(YYYY-MM-DD)"),
+          limit: z
+            .number()
+            .int()
+            .min(1)
+            .max(WORKOUTS_MAX_LIMIT)
+            .optional()
+            .describe(`최신순 최대 건수(기본 ${WORKOUTS_DEFAULT_LIMIT}, 최대 ${WORKOUTS_MAX_LIMIT})`),
+        },
+      },
+      async (args, extra) =>
+        runTool(extra, (ctx, supabase) =>
+          listMemberWorkouts(supabase, ctx, {
+            memberId: args.member_id,
+            name: args.name,
+            from: args.from,
+            to: args.to,
+            limit: args.limit,
+          }),
+        ),
+    );
   },
   {
     serverInfo: { name: "gigang-ops-mcp", version: "0.1.0" },

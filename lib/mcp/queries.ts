@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { dayjs } from "@/lib/dayjs";
 import type { Database } from "@/lib/supabase/database.types";
 import { fetchAllRows } from "@/lib/supabase/fetch-all";
+import { resolveTeamCfgValue } from "@/lib/team-cfg/registry";
 import { JOIN_PURP_SHORT_LABELS, PACE_LABELS } from "@/lib/validations/member";
 import {
   formatRecTime,
@@ -381,6 +382,8 @@ async function fetchActiveMemberSeeds(
  * 역·거리·페이스(`mem_onbd_prf`)는 사람 것이라 호출측 mem_id 목록으로만 스코프하고,
  * 가입 목적(`team_mem_onbd_rel`)은 **이 팀 것만** 읽는다 — 다른 팀에 들어온 이유가 섞이지 않게.
  * 온보딩 개편 전 가입자 등 행이 없는 멤버는 Map에 없음 → 호출측에서 null/[] 기본값 처리.
+ * 러닝 프로필을 안 쓰는 팀(팀 설정 `feature.running_profile` 끔 — 모비)은 역·거리·페이스·시작 정보를 읽지도 내보내지도 않는다
+ * (화면과 같은 기준, 2026-11-26). 가입 목적만 싣는다.
  */
 async function fetchRunningProfiles(
   supabase: Db,
@@ -390,9 +393,12 @@ async function fetchRunningProfiles(
 ): Promise<Map<string, RunningProfile>> {
   const map = new Map<string, RunningProfile>();
   if (memIds.length === 0) return map;
+  const runningProfileOn = await readRunningProfileOn(supabase, teamId);
   // 시작 정보(경력·주간 거리·자기신고 기록)는 admin 에게만 — 비-admin 은 칸도 기록 테이블도 아예 안 읽는다.
   // select 문자열을 합치면 타입 파서가 못 읽어 리터럴 둘로 갈랐다.
-  const prfQuery = isAdmin
+  const prfQuery = !runningProfileOn
+    ? Promise.resolve({ data: [], error: null })
+    : isAdmin
     ? supabase
         .from("mem_onbd_prf")
         .select(
@@ -410,7 +416,7 @@ async function fetchRunningProfiles(
       .select("mem_id, join_purp_cds")
       .eq("team_id", teamId)
       .in("mem_id", memIds),
-    isAdmin
+    isAdmin && runningProfileOn
       ? supabase.from("mem_start_rec_rel").select("mem_id, dist_cd, rec_sec").in("mem_id", memIds)
       : Promise.resolve({ data: null, error: null }),
   ]);
@@ -445,7 +451,34 @@ async function fetchRunningProfiles(
       ...(isAdmin ? { start_info: buildStartInfoSummary(r, recsByMem.get(r.mem_id) ?? []) } : {}),
     });
   }
+  // 러닝 프로필 행이 없어도 이 팀 가입 목적이 있으면 싣는다 — 예전엔 행이 있는 사람만 돌아 가입 목적까지 빠졌다
+  // (러닝 프로필을 안 쓰는 팀은 그 행을 만들지 않아 가입 목적이 통째로 사라졌다)
+  for (const [memId, cds] of purpByMem) {
+    if (map.has(memId)) continue;
+    map.set(memId, {
+      ...EMPTY_RUNNING_PROFILE,
+      join_purposes: decodeJoinPurposes(cds ?? null),
+      ...(isAdmin ? { start_info: null } : {}),
+    });
+  }
   return map;
+}
+
+/**
+ * 팀 설정 `feature.running_profile` — 이 함수가 받은 클라이언트로 직접 읽는다(`lib/team-cfg/read` 는 server-only 라 MCP 코어가
+ * 못 부른다). 행이 없거나 형식이 틀리면 사전 기본값(켬), 조회가 실패하면 끔 쪽으로(러닝 프로필을 안 쓰는 팀에 새지 않게).
+ */
+async function readRunningProfileOn(supabase: Db, teamId: string): Promise<boolean> {
+  const { data, error } = await (supabase as unknown as SupabaseClient)
+    .from("team_cfg")
+    .select("cfg_val_json")
+    .eq("team_id", teamId)
+    .eq("cfg_cd", "feature.running_profile")
+    .eq("vers", 0)
+    .eq("del_yn", false)
+    .maybeSingle();
+  if (error) return false;
+  return resolveTeamCfgValue("feature.running_profile", data ? (data as { cfg_val_json: unknown }).cfg_val_json : undefined);
 }
 
 const EMPTY_RUNNING_PROFILE: RunningProfile = {
@@ -512,6 +545,93 @@ export async function listTodayGatherings(
       attendee_cnt: countRel?.[0]?.count ?? 0,
     };
   });
+}
+
+export type MyGatheringRow = {
+  gthr_id: string;
+  gthr_nm: string;
+  gthr_type_enm: string;
+  stt_at: string;
+  end_at: string | null;
+  loc_txt: string | null;
+  attendee_cnt: number;
+  /** 내 참석 신청 시각(`gthr_attd_rel.crt_at`). */
+  applied_at: string | null;
+};
+
+/** `list_my_gatherings` 기본 조회 폭(일) — 오늘 ~ +30일. */
+export const MY_GATHERINGS_DEFAULT_DAYS = 30;
+/** 조회 기간 상한(일) — 실수로 수년치를 요청해 응답이 커지는 걸 막는다. */
+export const MY_GATHERINGS_MAX_DAYS = 366;
+
+/**
+ * 내가 참석 신청한 팀 모임(KST 기간, 양끝 날짜 포함) — 시작 시각 오름차순.
+ *
+ * 대상 멤버를 인자로 받지 않고 호출자(`memId`)로만 스코프한다 — admin 이어도 남의 것은 못 본다.
+ * 참석 취소는 `gthr_attd_rel` 행 삭제라 행이 있으면 곧 참석 중이고, 삭제·취소된 모임은
+ * `gthr_mst.del_yn` 으로 걸러진다(모임 취소 = 소프트 삭제).
+ */
+export async function listMyGatherings(
+  supabase: Db,
+  teamId: string,
+  memId: string,
+  range: { from?: string; to?: string } = {},
+): Promise<MyGatheringRow[]> {
+  const fromDay = kstDayRange(range.from).day;
+  const toDay =
+    range.to ??
+    dayjs.tz(fromDay, KST).add(MY_GATHERINGS_DEFAULT_DAYS, "day").format("YYYY-MM-DD");
+  const startIso = kstDayRange(fromDay).startIso;
+  const endIso = kstDayRange(toDay).endIso;
+  if (endIso <= startIso) {
+    throw new ToolInputError("to 는 from 보다 같거나 늦은 날짜여야 합니다.");
+  }
+  const spanDays = dayjs(endIso).diff(dayjs(startIso), "day");
+  if (spanDays > MY_GATHERINGS_MAX_DAYS) {
+    throw new ToolInputError(`조회 기간은 최대 ${MY_GATHERINGS_MAX_DAYS}일입니다.`);
+  }
+
+  const data = await fetchAllRows(
+    () =>
+      supabase
+        .from("gthr_attd_rel")
+        .select(
+          "attd_id, crt_at, gthr_mst!inner(gthr_id, gthr_nm, gthr_type_enm, stt_at, end_at, loc_txt, gthr_attd_rel(count))",
+        )
+        .eq("mem_id", memId)
+        .eq("gthr_mst.team_id", teamId)
+        .eq("gthr_mst.del_yn", false)
+        .gte("gthr_mst.stt_at", startIso)
+        .lt("gthr_mst.stt_at", endIso)
+        .order("attd_id", { ascending: true }),
+    { label: "mcp:my-gatherings" },
+  );
+
+  type Mst = {
+    gthr_id: string;
+    gthr_nm: string;
+    gthr_type_enm: string;
+    stt_at: string;
+    end_at: string | null;
+    loc_txt: string | null;
+    gthr_attd_rel: Array<{ count: number }> | null;
+  };
+  const rows: MyGatheringRow[] = [];
+  for (const r of data) {
+    const g = pickOne(r.gthr_mst as Mst | Mst[]);
+    if (!g) continue;
+    rows.push({
+      gthr_id: g.gthr_id,
+      gthr_nm: g.gthr_nm,
+      gthr_type_enm: g.gthr_type_enm,
+      stt_at: g.stt_at,
+      end_at: g.end_at ?? null,
+      loc_txt: g.loc_txt ?? null,
+      attendee_cnt: g.gthr_attd_rel?.[0]?.count ?? 0,
+      applied_at: (r.crt_at as string | null) ?? null,
+    });
+  }
+  return rows.sort((a, b) => dayjs(a.stt_at).valueOf() - dayjs(b.stt_at).valueOf());
 }
 
 /** §5.2 최근 가입 멤버(join_dt desc nulls last, crt_at desc). */

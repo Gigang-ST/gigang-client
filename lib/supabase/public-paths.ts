@@ -9,6 +9,8 @@
 /** 완전 일치로 공개되는 경로. prefix 매칭이면 하위 경로까지 덩달아 열린다. */
 const PUBLIC_PATHS = [
   "/",
+  // 기강 소개(#752) — 비로그인도 보는 팀 소개 지면
+  "/about",
   "/rules",
   "/join",
   "/newbie",

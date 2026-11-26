@@ -8,7 +8,7 @@ import { buildTeamCopy } from "@/lib/team-copy";
 export const GIGANG_COPY = buildTeamCopy({ teamCd: "gigang", crewName: "기강", memberNoun: "기강인", wordmark: "GIGANG" });
 
 /**
- * 테스트용 **울산(모보브)** 팀 문구 — 다른 팀 화면에 「기강」이 남지 않는지 보는 렌더 테스트가 쓴다(#658).
+ * 테스트용 **울산(모비)** 팀 문구 — 다른 팀 화면에 「기강」이 남지 않는지 보는 렌더 테스트가 쓴다(#658).
  * 호칭은 설정 전(빈 값 → 「크루원」)이 지금 실제 상태다.
  */
-export const ULSAN_COPY = buildTeamCopy({ teamCd: "ulsan", crewName: "모보브", memberNoun: null, wordmark: "MOVOF" });
+export const ULSAN_COPY = buildTeamCopy({ teamCd: "ulsan", crewName: "모비", memberNoun: null, wordmark: "MOBBY" });

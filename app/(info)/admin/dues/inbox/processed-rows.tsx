@@ -40,7 +40,10 @@ export function ProcessedRows({
             <Micro>{dayjs(t.txnDt).format("YY.MM.DD")}</Micro>
           </td>
           <td className="px-2 py-2">
-            <Caption className="text-foreground">{t.rawName}</Caption>
+            <Caption className="text-foreground">
+              {t.rawName}
+              {t.splitParentId && <span className="ml-1.5 rounded bg-info/15 px-1 text-info">나눔</span>}
+            </Caption>
           </td>
           <td className="px-2 py-2 text-right">
             <Body className="font-semibold">{t.amt.toLocaleString()}원</Body>

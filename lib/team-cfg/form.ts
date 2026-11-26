@@ -17,6 +17,8 @@ export const CFG_GROUPS: { group: CfgGroup; label: string }[] = [
   { group: "seo", label: "검색·공유" },
   { group: "operation", label: "운영" },
   { group: "member_info", label: "크루 안내" },
+  // 신입 안내(/newbie) — 크루 안내 다음, 처음 온 사람에게 보이는 것이라서
+  { group: "newbie", label: "신입 안내" },
   { group: "feature", label: "기능" },
 ];
 
@@ -26,6 +28,7 @@ export const CFG_GROUPS: { group: CfgGroup; label: string }[] = [
 export const CFG_ORDER: readonly string[] = [
   "feature.dues",
   "feature.titles",
+  "feature.running_profile",
   "records.categories",
   "social.channels",
   "social.kakao_open_chat_password",
@@ -43,6 +46,8 @@ export const CFG_ORDER: readonly string[] = [
   "seo.title",
   "seo.title_suffix",
   "seo.description",
+  "newbie.activities",
+  "newbie.sections",
 ];
 
 export function compareCfgOrder(a: string, b: string): number {
@@ -134,6 +139,16 @@ export function summarizeCfg(input: CfgInput, isSet: boolean, value: unknown): s
     }
     case "choice":
       return input.options.find((o) => o.value === value)?.label ?? "설정 안 함";
+    case "lines": {
+      const rows = Array.isArray(value) ? (value as string[]) : [];
+      return rows.length > 0 ? rows.join(" · ") : "설정 안 함";
+    }
+    case "guide_sections": {
+      const rows = Array.isArray(value) ? (value as { title: string; visible: boolean }[]) : [];
+      if (rows.length === 0) return "설정 안 함";
+      const hidden = rows.filter((r) => !r.visible).length;
+      return `${rows.length}칸${hidden > 0 ? ` (숨김 ${hidden})` : ""} — ${rows.map((r) => r.title).join(", ")}`;
+    }
   }
 }
 

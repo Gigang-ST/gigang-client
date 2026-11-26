@@ -235,7 +235,10 @@ const MEM_ID = "aaaaaaaa-0000-4000-8000-000000000001";
  * `memMst` 는 "DB 가 실제로 돌려준 것"을 흉내 낸다 — 비-admin 경로에서는 select 에서 빠졌으므로
  * birth_dt·gdr_enm 키가 애초에 없는 객체를 넘긴다.
  */
-function makeProfileSupabase(memMst: Record<string, unknown>) {
+function makeProfileSupabase(
+  memMst: Record<string, unknown>,
+  opts: { runningProfile?: boolean; purposes?: string[] } = {},
+) {
   const captured: { select: string | null; tables: string[]; prfSelect: string | null } = {
     select: null,
     tables: [],
@@ -274,16 +277,36 @@ function makeProfileSupabase(memMst: Record<string, unknown>) {
         resolve({
           data:
             table === "mem_onbd_prf"
-              ? [{ mem_id: MEM_ID, near_stn_nm: null, start_info_at: "2026-11-20T01:00:00Z", run_career_cd: "Y1_3" }]
-              : [],
+              ? [
+                  {
+                    mem_id: MEM_ID,
+                    near_stn_nm: "합정",
+                    avg_pace_cd: "P600",
+                    start_info_at: "2026-11-20T01:00:00Z",
+                    run_career_cd: "Y1_3",
+                  },
+                ]
+              : table === "team_mem_onbd_rel" && opts.purposes
+                ? [{ mem_id: MEM_ID, join_purp_cds: opts.purposes }]
+                : [],
           error: null,
         }),
     };
     return b;
   };
+  // 팀 설정 feature.running_profile — 행이 없으면 기본값(켬)
+  const cfgBuilder: Record<string, unknown> = {
+    select: () => cfgBuilder,
+    eq: () => cfgBuilder,
+    maybeSingle: async () => ({
+      data: opts.runningProfile === undefined ? null : { cfg_val_json: opts.runningProfile },
+      error: null,
+    }),
+  };
   const client = {
     from: (table: string) => {
       captured.tables.push(table);
+      if (table === "team_cfg") return cfgBuilder;
       return table === "mem_onbd_prf" || table === "team_mem_onbd_rel" || table === "mem_start_rec_rel"
         ? makeOnbd(table)
         : relBuilder;
@@ -336,6 +359,18 @@ describe("#496 get_member_profile — 생년월일·성별은 admin 응답에만
     expect(member.captured.prfSelect).not.toContain("start_info");
     expect(member.captured.tables).not.toContain("mem_start_rec_rel");
     expect("start_info" in m[0]).toBe(false);
+  });
+
+  it("러닝 프로필을 끈 팀(모비)은 역·페이스·시작 정보를 읽지도 싣지도 않고, 가입 목적은 러닝 프로필 행이 없어도 싣는다", async () => {
+    const off = makeProfileSupabase(adminMemMst, { runningProfile: false, purposes: ["MT_MATE"] });
+    const rows = await getMemberProfile(off.client, TEAM_ID, true, { memberId: MEM_ID });
+    expect(off.captured.tables).not.toContain("mem_onbd_prf");
+    expect(off.captured.tables).not.toContain("mem_start_rec_rel");
+    expect(rows[0]).toMatchObject({ near_stn: null, avg_pace: null, join_purposes: ["산 메이트"], start_info: null });
+
+    const on = makeProfileSupabase(adminMemMst, { purposes: ["RUN_MATE"] });
+    const onRows = await getMemberProfile(on.client, TEAM_ID, true, { memberId: MEM_ID });
+    expect(onRows[0]).toMatchObject({ near_stn: "합정", join_purposes: ["러닝메이트"] });
   });
 
   it("비-admin 도 공개 프로필 카드에 이미 있는 필드는 그대로 받는다(도구는 계속 멤버 허용)", async () => {

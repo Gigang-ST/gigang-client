@@ -2158,6 +2158,15 @@ html[data-shell-inset] .app-shell {
   --app-max-w: var(--app-wide-max-w);
 }
 
+/* 폭 제한 없이 화면 전체 — 소개 페이지(`/about`)처럼 자기 안에서 폭을 직접 잡는 지면용.
+   `.app-wide`와 같은 이유로 body에서 갈아끼운다. 폭 컨트롤 레일은 고를 폭이 없으니 숨긴다. */
+.app-viewport:has(.app-full) {
+  --app-max-w: 100%;
+}
+.app-viewport:has(.app-full) .app-rail {
+  display: none;
+}
+
 /* 뷰포트 고정이되 가로는 셸 폭에 맞추는 요소(탭바·상단 배너·바텀시트).
    `inset-x-0`과 함께 쓴다(좌우 0이 폭을 만들고 max-width가 자른 뒤 auto 마진이 가운데로).
 

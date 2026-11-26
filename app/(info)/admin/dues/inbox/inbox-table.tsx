@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { InboxRow, ITEM_LABEL, memberNameById } from "./inbox-row";
 import { ManualTxnButton } from "./manual-txn-button";
 import { ProcessedRows } from "./processed-rows";
+import { SplitDialog } from "./split-dialog";
 import { UploadXlsxButton } from "./upload-xlsx-button";
 
 type Filter = "all" | "needsReview" | "autoDone" | "excluded" | "processed";
@@ -110,6 +111,7 @@ export function InboxTable({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cancelBusyId, setCancelBusyId] = useState<string | null>(null);
   const [deleteBusyId, setDeleteBusyId] = useState<string | null>(null);
+  const [splitTarget, setSplitTarget] = useState<InboxTxn | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const router = useRouter();
 
@@ -288,7 +290,10 @@ export function InboxTable({
   }
 
   function onCancelProcessed(txn: ProcessedTxn) {
-    if (!confirm(`${txn.rawName} ${txn.amt.toLocaleString()}원 확정을 취소하시겠습니까?\n거래가 인박스로 돌아가고 잔액이 복구됩니다.`)) return;
+    const text = txn.splitParentId
+      ? `${txn.rawName} ${txn.amt.toLocaleString()}원은 나눠 넣은 거래의 한 줄입니다.\n취소하면 같이 나눈 줄 전체가 취소되고, 원래 거래 한 건이 인박스로 돌아가며 잔액이 복구됩니다.`
+      : `${txn.rawName} ${txn.amt.toLocaleString()}원 확정을 취소하시겠습니까?\n거래가 인박스로 돌아가고 잔액이 복구됩니다.`;
+    if (!confirm(text)) return;
     setMsg(null);
     setCancelBusyId(txn.txnId);
     startTransition(async () => {
@@ -512,6 +517,7 @@ export function InboxTable({
                   onArrow={(dir) => focusByOffset(t.txnId, dir)}
                   onEnterNext={() => focusByOffset(t.txnId, 1)}
                   onDelete={() => onDeleteTxn(t)}
+                  onSplit={() => setSplitTarget(t)}
                   deleteBusy={deleteBusyId !== null}
                 />
               ))}
@@ -561,6 +567,35 @@ export function InboxTable({
                 : `전체 ${confirmCount}건 확정 + 회비 재계산`}
           </Button>
         </div>
+      )}
+
+      {splitTarget && (
+        <SplitDialog
+          key={splitTarget.txnId}
+          txn={splitTarget}
+          members={members}
+          projects={projects}
+          dupNames={dupNames}
+          open
+          onOpenChange={(o) => {
+            if (!o) setSplitTarget(null);
+          }}
+          onDone={(message) => {
+            const id = splitTarget.txnId;
+            setSelected((prev) => {
+              const next = new Set(prev);
+              next.delete(id);
+              return next;
+            });
+            setOverrides((prev) => {
+              const next = { ...prev };
+              delete next[id];
+              return next;
+            });
+            setMsg(message);
+            router.refresh();
+          }}
+        />
       )}
 
       {/* 확정 전 범위 고지 — 지금 보고 있는 필터와 무관하게 미처리 전체가 확정된다 */}

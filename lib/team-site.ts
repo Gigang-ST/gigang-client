@@ -15,7 +15,8 @@ import { TEAM_LOGO } from "@/lib/team-logo";
  * - 전부 `public/` 정적 파일이라 CDN 이 그대로 준다(함수 호출 없음).
  *
  * 2026-11-10: 예전엔 `app/opengraph-image.png`·`app/manifest.ts`·레이아웃 아이콘이 고정이라 **모든 주소가 기강**이었다.
- * 울산(모보브) 파일은 전부 임시 로고(TEAM MOVOF ULSAN 배지)로 만든 것 — 진짜 로고가 오면 같은 이름으로 바꿔 끼운다.
+ * 울산(모비) 파일은 2026-11-23 받은 확정 로고(「mob by」 워드마크, 검정 바탕 흰 글씨)로 만들었다 — 앱 아이콘·타일·썸네일은
+ * 원본처럼 검정 바탕, 화면 안 로고(`logo.png`)는 검정 글씨 + 투명(§`lib/team-logo.ts`), 푸시 배지는 흰 실루엣 + 투명.
  */
 
 export type TeamOgImage = {
@@ -107,7 +108,7 @@ export const TEAM_SITE: Readonly<Record<string, TeamSite>> = {
   },
   ulsan: {
     ogImage: { path: ulsan("og.png"), width: 1200, height: 630 },
-    // 16·32 는 배지 글자가 뭉개져 산 모양만, 나머지는 배지 전체
+    // 「mob by」 두 줄 워드마크. 16 은 두 줄이 뭉개져 첫 글자 「m」만, 나머지는 워드마크 전체
     favicons: [
       { url: ulsan("favicon-16x16.png"), sizes: "16x16" },
       { url: ulsan("favicon-32x32.png"), sizes: "32x32" },
@@ -120,8 +121,8 @@ export const TEAM_SITE: Readonly<Record<string, TeamSite>> = {
     notificationBadge: ulsan("notification-badge.png"),
     logo: TEAM_LOGO.ulsan.logo,
     organization: {
-      name: "모보브 트레일러닝 크루",
-      alternateName: ["모보브", "MOVOF", "울산 트레일러닝 크루 모보브"],
+      name: "모비 트레일러닝 크루",
+      alternateName: ["모비", "MOBBY", "mob by", "울산 트레일러닝 크루 모비"],
       knowsAbout: ["트레일러닝", "등산", "러닝"],
       areaServed: "울산 일대",
     },

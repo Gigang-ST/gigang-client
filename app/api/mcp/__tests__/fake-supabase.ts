@@ -123,7 +123,8 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: unknown }> {
       const actual = readPath(row, f.col);
       switch (f.kind) {
         case "eq":
-          return actual === f.val;
+          // 실제 DB 는 값 없는 컬럼이 null 이다 — 시드에서 빠진 컬럼(undefined)도 `.is(col, null)` 에 걸리게 한다.
+          return f.val === null ? (actual ?? null) === null : actual === f.val;
         case "neq":
           return actual !== f.val;
         case "gte":

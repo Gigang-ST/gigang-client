@@ -3,6 +3,7 @@ import { z } from "zod";
 import { parseEventTime } from "@/lib/dayjs";
 import { RECORD_CATEGORIES, RECORD_CATEGORY_KEYS } from "@/lib/records-categories";
 import { GTHR_SPRT_TYPES, gthrSprtLabels } from "@/lib/validations/gathering";
+import { guideActivitiesSchema, guideSectionsSchema } from "@/lib/newbie-guide";
 
 /**
  * 팀 설정 사전 — `team_cfg` 에 들어갈 수 있는 키의 **정본**.
@@ -24,7 +25,7 @@ import { GTHR_SPRT_TYPES, gthrSprtLabels } from "@/lib/validations/gathering";
  * 관리자 「팀 설정」 화면(`/admin/team-settings`)이 묶는 칸. 화면은 이 사전을 보고 그리므로,
  * **키를 사전에 더하면 모든 팀의 설정 화면에 저절로 올라온다**(팀마다 빈 행을 미리 넣을 필요가 없다).
  */
-export type CfgGroup = "feature" | "member_info" | "operation" | "brand" | "seo";
+export type CfgGroup = "feature" | "member_info" | "newbie" | "operation" | "brand" | "seo";
 
 /**
  * 입력칸 모양. `secret` 은 지금 값을 화면에 내보내지 않고(설정됨/안 됨만) 새 값 입력만 받는다.
@@ -38,6 +39,10 @@ export type CfgInput =
   | { kind: "channels" }
   | { kind: "regular_template" }
   | { kind: "team_links" }
+  /** 짧은 글 여러 줄(한 줄에 하나) — 칩 목록 등 */
+  | { kind: "lines"; placeholder?: string }
+  /** 신입 안내 칸 목록(제목·아이콘·마크다운 본문·보이기) — 행 추가·삭제·순서(§lib/newbie-guide) */
+  | { kind: "guide_sections" }
   /**
    * 여러 개 고르기(체크박스), 최소 하나. `orderable` 이면 위아래로 순서를 바꿀 수 있고 **고른 순서 그대로** 저장한다
    * (화면이 그 순서로 세운다). 아니면 `options` 순서로 저장한다.
@@ -205,10 +210,10 @@ export const TEAM_CFG_REGISTRY = {
     schema: z.string().trim().min(1).max(30).nullable(),
     default: null,
     label: "워드마크",
-    description: "모임 공유 이미지 아래에 찍히는 팀 글자(예: GIGANG). 비우면 안 보여요.",
+    description: "모임 공유 이미지 아래에 찍히는 팀 영문 글자(예: MY CREW). 비우면 안 보여요.",
     visibility: "public",
     group: "brand",
-    input: { kind: "text", placeholder: "예: GIGANG" },
+    input: { kind: "text", placeholder: "예: MY CREW" },
   }),
 
   /**
@@ -224,7 +229,7 @@ export const TEAM_CFG_REGISTRY = {
     description: "일정 탭 맨 위와 모임 공유 이미지에 대문자로 찍히는 한 줄(24자까지). 비우면 안 보여요.",
     visibility: "public",
     group: "brand",
-    input: { kind: "text", placeholder: "예: No time to be weak" },
+    input: { kind: "text", placeholder: "예: 함께 달리면 더 멀리" },
   }),
 
   /**
@@ -245,7 +250,7 @@ export const TEAM_CFG_REGISTRY = {
    * 크루 이름 — **앱 전체의 크루 이름**(「○○에 합류」「○○의 전당」「○○이야기」 등 화면 곳곳, `lib/team-copy.ts`)이자
    * 링크 미리보기 사이트 이름·iOS 홈 화면 제목. **기본값이 없다** — 기본값을 「기강」으로 두면 설정을 안 채운 팀에 기강 이름이
    * 뜬다. 비어 있으면 팀 기본 이름(코드의 말투 표 — 기강 「기강」), 그것도 없으면 「크루」.
-   * `team_mst.team_nm`(관리용 이름, 울산은 「울산지부」)과 다르다 — 이건 사람들에게 보이는 크루 이름이다(울산 = 모보브).
+   * `team_mst.team_nm`(관리용 이름, 울산은 「울산지부」)과 다르다 — 이건 사람들에게 보이는 크루 이름이다(울산 = 모비).
    */
   "brand.name": defineCfg({
     schema: z.string().trim().min(1).max(20).nullable(),
@@ -254,22 +259,22 @@ export const TEAM_CFG_REGISTRY = {
     description: "화면 곳곳(「○○에 합류」「○○의 전당」 등)과 링크 미리보기에 쓰는 크루 이름이에요. 비우면 팀 기본 이름, 그것도 없으면 「크루」로 보여요.",
     visibility: "public",
     group: "brand",
-    input: { kind: "text", placeholder: "예: 기강" },
+    input: { kind: "text", placeholder: "예: 크루 이름" },
   }),
 
   /**
    * 회원 호칭 — 「기강인만 볼 수 있어요」「기강인 42명의 이번 주 심박」의 「기강인」 자리(`lib/team-copy.ts`).
-   * 크루 이름에 「인」만 붙이면 어색한 팀이 있어(「모보브인」) 따로 둔다(유저 결정 2026-11-10).
+   * 크루 이름에 「인」만 붙이면 어색한 팀이 있어(「모비인」) 따로 둔다(유저 결정 2026-11-10).
    * **기본값 없음** — 비어 있으면 팀 기본 호칭(코드의 말투 표), 그것도 없으면 중립어 「크루원」(다른 팀 호칭으로 물러나지 않는다).
    */
   "brand.member_noun": defineCfg({
     schema: z.string().trim().min(1).max(10).nullable(),
     default: null,
     label: "회원 호칭",
-    description: "화면에서 회원을 부르는 말(예: 기강인). 비우면 팀 기본 호칭, 그것도 없으면 「크루원」으로 보여요.",
+    description: "화면에서 회원을 부르는 말(예: 크루원). 비우면 팀 기본 호칭, 그것도 없으면 「크루원」으로 보여요.",
     visibility: "public",
     group: "brand",
-    input: { kind: "text", placeholder: "예: 기강인" },
+    input: { kind: "text", placeholder: "예: 크루원" },
   }),
 
   /**
@@ -285,7 +290,7 @@ export const TEAM_CFG_REGISTRY = {
     description: "링크 미리보기·검색결과에 뜨는 제목. 크루 이름만 쓰면 검색에 안 걸릴 수 있어 활동 지역·종목을 같이 넣는 게 좋아요.",
     visibility: "public",
     group: "seo",
-    input: { kind: "text", placeholder: "예: 기강 러닝크루 | 양재천·강남 러닝 스포츠팀" },
+    input: { kind: "text", placeholder: "예: 크루 이름 | 지역·종목 크루" },
   }),
   "seo.title_suffix": defineCfg({
     schema: z.string().trim().min(1).max(30).nullable(),
@@ -294,7 +299,7 @@ export const TEAM_CFG_REGISTRY = {
     description: "다른 화면 제목 뒤에 「일정 | ○○」처럼 붙어요. 비우면 크루 이름이 붙어요.",
     visibility: "public",
     group: "seo",
-    input: { kind: "text", placeholder: "예: 기강 러닝크루" },
+    input: { kind: "text", placeholder: "예: 크루 이름" },
   }),
   "seo.description": defineCfg({
     schema: z.string().trim().min(1).max(160).nullable(),
@@ -303,7 +308,7 @@ export const TEAM_CFG_REGISTRY = {
     description: "링크 미리보기·검색결과 제목 아래에 보이는 소개(160자까지). 비우면 슬로건이 보여요.",
     visibility: "public",
     group: "seo",
-    input: { kind: "text", placeholder: "예: 양재천·강남에서 함께 달리는 러닝크루" },
+    input: { kind: "text", placeholder: "예: 우리 동네에서 함께 달리는 크루" },
   }),
 
   /**
@@ -394,6 +399,27 @@ export const TEAM_CFG_REGISTRY = {
   }),
 
   /**
+   * 러닝 프로필(가까운 역·평균 페이스·평균 거리 + 시작 정보 — 경력·주간 거리·기록) 사용 여부. 기본값 = 지금 기강 동작(켬).
+   * 끈 팀은 **어디서도** 받지도 보이지도 않는다 — 가입 단계(「러닝 프로필」 단계째 없음)·신입 안내·프로필 카드·간단 카드·
+   * 홈 리드·프로필 수정·관리자 회원 목록·개인정보처리방침·운영 MCP(2026-11-26 유저 결정 — 「팀이 안 쓰기로 한 기능은 같이
+   * 적용돼야 한다」). 가입 목적은 러닝 프로필과 별개로 남는다. 값은 **사람 것**이라 지우지 않는다 — 다른 팀 주소에선 그대로 보인다.
+   * 모비(울산)는 끔 — 수도권 지하철역·로드 페이스가 트레일 크루에 안 맞는다.
+   */
+  "feature.running_profile": defineCfg({
+    schema: z.boolean(),
+    default: true,
+    label: "러닝 프로필",
+    description:
+      "가입·프로필에서 가까운 역·평균 페이스·평균 거리·시작 정보를 받고 카드에 보여요. 끄면 어디서도 안 보이고 가입 목적만 남아요.",
+    visibility: "public",
+    group: "feature",
+    input: { kind: "boolean" },
+    // 못 읽었을 땐 끈다 — 회비·칭호와 같은 이유(켬으로 물러나면 안 쓰는 팀(모비)에 그 순간 수도권 지하철역 가입 단계가 열린다).
+    // 운영 MCP 쪽 읽기(`lib/mcp/queries.ts` readRunningProfileOn)도 실패하면 끈다
+    onReadError: false,
+  }),
+
+  /**
    * 이 팀의 **기록 종목** — 기강의 전당(랭킹탭)에 세울 종목과 **그 순서**(저장된 순서대로 탭이 서고, 첫 종목이 처음
    * 열린다), 그리고 **프로필 카드의 기록 칸·페이스 추이**도 같은 종목만 세운다(카드 함수가 이 값을 실어 준다 —
    * `get_public_member_card` 의 `record_categories`, 2026-11-10 유저 결정). 기본값 = 넷 다
@@ -412,6 +438,35 @@ export const TEAM_CFG_REGISTRY = {
     visibility: "public",
     group: "feature",
     input: { kind: "choices", options: RECORD_CATEGORIES, orderable: true },
+  }),
+
+  /**
+   * 신입 안내(`/newbie`) 「이런 활동을 해요」 칩(#650, 2026-11-23). **기본값이 없다** — 비어 있으면 그 줄째 안 그린다.
+   * 예전엔 기강 칩이 화면 코드에 박혀 기강에서만 섰다(`crewGuide`). 기강 값은 마이그레이션이 그대로 옮겨 넣었다.
+   */
+  "newbie.activities": defineCfg({
+    schema: guideActivitiesSchema,
+    default: [],
+    label: "이런 활동을 해요",
+    description: "신입 안내 화면에 칩으로 보여요. 한 줄에 하나씩(이모지 포함 20자까지). 비우면 이 줄이 안 보여요.",
+    visibility: "public",
+    group: "newbie",
+    input: { kind: "lines", placeholder: "예: 🏃 러닝" },
+  }),
+
+  /**
+   * 신입 안내 「더 알아보기」 칸 목록 — 칸마다 제목·아이콘·마크다운 본문·보이기(#650). **기본값이 없다** — 보이는 칸이 없으면
+   * 「더 알아보기」째 안 그린다. 기강의 안내말씀·회칙·모임 안전수칙·러닝팁은 마이그레이션이 지금 문구 그대로 옮겨 넣었다.
+   */
+  "newbie.sections": defineCfg({
+    schema: guideSectionsSchema,
+    default: [],
+    label: "더 알아보기",
+    description:
+      "신입 안내 화면 아래 펼쳐 보는 칸들(안내말씀·회칙·안전수칙 등). 칸을 더하고 지우고 순서를 바꿀 수 있고, 본문은 게시판처럼 마크다운으로 써요. 엔터를 누르면 화면에서도 줄이 바뀌어요.",
+    visibility: "public",
+    group: "newbie",
+    input: { kind: "guide_sections" },
   }),
 } as const;
 

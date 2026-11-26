@@ -13,7 +13,7 @@ describe("teamLogoForHost — 화면 안 로고는 접속 주소의 팀 것", ()
     }
   });
 
-  it("울산 주소는 모보브 로고", () => {
+  it("울산 주소는 모비 로고", () => {
     for (const host of ["ulsan.gigang.team", "dev.ulsan.gigang.team", "ulsan.localhost:3000"]) {
       expect(teamLogoForHost(host)?.logo).toBe("/teams/ulsan/logo.png");
     }

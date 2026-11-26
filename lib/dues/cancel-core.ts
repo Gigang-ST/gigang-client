@@ -38,7 +38,7 @@ export async function cancelTransactionCore(
 ) {
   const { data: txn } = await db
     .from("fee_txn_hist")
-    .select("txn_id, is_cfm_yn, fee_item_cd, mem_id, txn_dt, txn_tm")
+    .select("txn_id, is_cfm_yn, fee_item_cd, mem_id, txn_dt, txn_tm, split_parent_id")
     .eq("txn_id", txnId)
     .eq("team_id", teamId)
     .eq("del_yn", false)
@@ -46,28 +46,14 @@ export async function cancelTransactionCore(
   if (!txn) return { ok: false as const, message: "거래를 찾을 수 없습니다." };
   if (!txn.is_cfm_yn) return { ok: false as const, message: "확정되지 않은 거래입니다." };
 
-  // 앵커(개시잔액) 이전 납부는 리플레이로 복구할 수 없으므로 취소 불가
-  if (txn.fee_item_cd === "due" && txn.mem_id) {
-    const { data: anchor } = await db
-      .from("fee_mem_bal_snap")
-      .select("last_calc_at")
-      .eq("team_id", teamId)
-      .eq("mem_id", txn.mem_id)
-      .eq("del_yn", false)
-      .lt("crt_at", dayjs(LEDGER_EPOCH).toISOString())
-      .order("crt_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (anchor?.last_calc_at) {
-      const txnAt = dayjs.tz(`${txn.txn_dt}T${txn.txn_tm ?? "00:00:00"}`, "Asia/Seoul");
-      if (!txnAt.isAfter(dayjs(anchor.last_calc_at))) {
-        return {
-          ok: false as const,
-          message: "원장 전환 이전 개시잔액에 포함된 거래라 취소할 수 없습니다.",
-        };
-      }
-    }
+  // 나눠 넣은 거래(#754)의 한 줄이면 같이 나눈 줄 전체를 한 번에 취소한다.
+  if (txn.split_parent_id) {
+    return cancelSplitGroupCore(db, { teamId, actorMemId, parentId: txn.split_parent_id, dryRun });
   }
+
+  // 앵커(개시잔액) 이전 납부는 리플레이로 복구할 수 없으므로 취소 불가
+  const blocked = await anchorBlockMessage(db, teamId, txn);
+  if (blocked) return { ok: false as const, message: blocked };
 
   if (dryRun) return { ok: true as const, message: null, memId: txn.mem_id };
 
@@ -111,4 +97,88 @@ export async function cancelTransactionCore(
   }
 
   return { ok: true as const, message: null, memId: txn.mem_id };
+}
+
+type CancelTxnRef = { fee_item_cd: string | null; mem_id: string | null; txn_dt: string; txn_tm: string | null };
+
+/** 원장 전환 이전 개시잔액에 녹아 있는 납부면 취소 불가 사유를, 아니면 null. */
+async function anchorBlockMessage(db: Db, teamId: string, txn: CancelTxnRef): Promise<string | null> {
+  if (txn.fee_item_cd !== "due" || !txn.mem_id) return null;
+  const { data: anchor } = await db
+    .from("fee_mem_bal_snap")
+    .select("last_calc_at")
+    .eq("team_id", teamId)
+    .eq("mem_id", txn.mem_id)
+    .eq("del_yn", false)
+    .lt("crt_at", dayjs(LEDGER_EPOCH).toISOString())
+    .order("crt_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!anchor?.last_calc_at) return null;
+  const txnAt = dayjs.tz(`${txn.txn_dt}T${txn.txn_tm ?? "00:00:00"}`, "Asia/Seoul");
+  return txnAt.isAfter(dayjs(anchor.last_calc_at)) ? null : "원장 전환 이전 개시잔액에 포함된 거래라 취소할 수 없습니다.";
+}
+
+/**
+ * 나눠 넣은 거래(#754)의 확정을 한 번에 취소한다 — 줄(자식)을 전부 내리고 원거래(부모)를 미확정으로 되살려
+ * 인박스로 복귀시킨다. 납부원장은 cancelled, 줄에 걸린 회원 잔액은 리플레이로 복구한다.
+ */
+async function cancelSplitGroupCore(
+  db: Db,
+  { teamId, actorMemId, parentId, dryRun }: { teamId: string; actorMemId: string; parentId: string; dryRun: boolean },
+) {
+  const { data: kids, error: kidsErr } = await db
+    .from("fee_txn_hist")
+    .select("txn_id, fee_item_cd, mem_id, txn_dt, txn_tm")
+    .eq("team_id", teamId)
+    .eq("split_parent_id", parentId)
+    .eq("del_yn", false);
+  if (kidsErr) return { ok: false as const, message: "나눈 줄 조회에 실패했습니다." };
+  if (!kids || kids.length === 0) return { ok: false as const, message: "거래를 찾을 수 없습니다." };
+
+  for (const k of kids) {
+    const blocked = await anchorBlockMessage(db, teamId, k);
+    if (blocked) return { ok: false as const, message: blocked };
+  }
+
+  const memIds = [...new Set(kids.map((k) => k.mem_id).filter((v): v is string => Boolean(v)))];
+  if (dryRun) return { ok: true as const, message: null, memId: memIds[0] ?? null, split: true as const };
+
+  const kidIds = kids.map((k) => k.txn_id);
+  const { error: payErr } = await db
+    .from("fee_due_pay_hist")
+    .update({ pay_st_cd: "cancelled" })
+    .eq("team_id", teamId)
+    .in("src_txn_id", kidIds)
+    .eq("pay_st_cd", "paid");
+  if (payErr) return { ok: false as const, message: "납부 원장 취소에 실패했습니다. 다시 시도하세요." };
+
+  const { error: kidErr } = await db
+    .from("fee_txn_hist")
+    .update({ del_yn: true, is_cfm_yn: false, cfm_by_mem_id: null, cfm_at: null })
+    .eq("team_id", teamId)
+    .in("txn_id", kidIds);
+  if (kidErr) return { ok: false as const, message: "확정 취소에 실패했습니다. 다시 시도하세요." };
+
+  const { error: parentErr } = await db
+    .from("fee_txn_hist")
+    .update({ del_yn: false, split_yn: false, is_cfm_yn: false, cfm_by_mem_id: null, cfm_at: null })
+    .eq("team_id", teamId)
+    .eq("txn_id", parentId);
+  if (parentErr) return { ok: false as const, message: "원래 거래를 인박스로 되돌리지 못했습니다. 다시 시도하세요." };
+
+  if (memIds.length > 0) {
+    const recalc = await recalculateBalanceCore(db, { teamId, actorMemId, memIds });
+    if (!recalc.ok) {
+      console.error("[cancelTransaction] 나눈 건 취소 후 재계산 실패:", recalc.message);
+      return {
+        ok: false as const,
+        cancelled: true as const,
+        memId: memIds[0] ?? null,
+        message: "취소는 됐지만 잔액 재계산에 실패했습니다. 잔액 원장에서 '전체 재계산'을 실행하면 복구됩니다.",
+      };
+    }
+  }
+
+  return { ok: true as const, message: null, memId: memIds[0] ?? null, split: true as const };
 }

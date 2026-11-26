@@ -64,20 +64,20 @@ describe("buildSiteMetadata — 기강은 예전 고정 metadata 와 같은 값"
 });
 
 describe("buildSiteMetadata — 다른 팀", () => {
-  it("모보브는 자기 문구·자기 썸네일, 네이버 태그 없음, X 카드는 og 썸네일을 그대로", () => {
+  it("모비는 자기 문구·자기 썸네일, 네이버 태그 없음, X 카드는 og 썸네일을 그대로", () => {
     const m = buildSiteMetadata({
       ...GIGANG,
       canonicalOrigin: "https://ulsan.gigang.team",
       requestOrigin: "https://ulsan.gigang.team",
-      name: "모보브",
-      title: "모보브 MOVOF | 울산 트레일러닝 크루",
-      titleSuffix: "모보브",
-      description: "울산에서 함께 산을 달리는 트레일러닝 크루 모보브(MOVOF).",
-      slogan: "Climb hard Run wild",
+      name: "모비",
+      title: "모비 MOBBY | 울산 트레일러닝 크루",
+      titleSuffix: "모비",
+      description: "울산에서 함께 산을 달리는 트레일러닝 크루 모비(MOBBY).",
+      slogan: "hobby is mountain",
       site: TEAM_SITE.ulsan,
     });
-    expect(m.title).toEqual({ default: "모보브 MOVOF | 울산 트레일러닝 크루", template: "%s | 모보브" });
-    expect((m.openGraph as Og).siteName).toBe("모보브");
+    expect(m.title).toEqual({ default: "모비 MOBBY | 울산 트레일러닝 크루", template: "%s | 모비" });
+    expect((m.openGraph as Og).siteName).toBe("모비");
     expect((m.openGraph as Og).images?.[0].url).toBe("https://ulsan.gigang.team/teams/ulsan/og.png");
     expect((m.twitter as { images: string[] }).images).toEqual(["https://ulsan.gigang.team/teams/ulsan/og.png"]);
     expect(m).not.toHaveProperty("verification");
@@ -110,16 +110,16 @@ describe("buildSiteMetadata — 다른 팀", () => {
 
 describe("resolveSiteText — 빈 칸 물러남", () => {
   it("홈 제목은 크루 이름으로, 탭 제목 뒤 말도 크루 이름으로, 설명은 슬로건으로", () => {
-    expect(resolveSiteText({ name: "모보브", title: null, titleSuffix: null, description: null, slogan: "Climb hard Run wild" })).toEqual({
-      name: "모보브",
-      homeTitle: "모보브",
-      titleSuffix: "모보브",
-      description: "Climb hard Run wild",
+    expect(resolveSiteText({ name: "모비", title: null, titleSuffix: null, description: null, slogan: "hobby is mountain" })).toEqual({
+      name: "모비",
+      homeTitle: "모비",
+      titleSuffix: "모비",
+      description: "hobby is mountain",
     });
   });
 
   it("크루 이름이 없어도 탭 제목 뒤 말이 있으면 그걸 홈 제목으로", () => {
-    expect(resolveSiteText({ name: null, title: null, titleSuffix: "모보브", description: null, slogan: null }).homeTitle).toBe("모보브");
+    expect(resolveSiteText({ name: null, title: null, titleSuffix: "모비", description: null, slogan: null }).homeTitle).toBe("모비");
   });
 });
 

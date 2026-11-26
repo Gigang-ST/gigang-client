@@ -15,12 +15,13 @@ import { buildTeamCopy, pageDescription, type PageDescriptionKey, type TeamCopy 
  */
 export const getTeamCopy = cache(async (): Promise<TeamCopy> => {
   const { teamId, teamCd } = await getRequestTeamContext();
-  const [crewName, memberNoun, wordmark] = await Promise.all([
+  const [crewName, memberNoun, wordmark, runningProfile] = await Promise.all([
     getTeamCfg(teamId, "brand.name"),
     getTeamCfg(teamId, "brand.member_noun"),
     getTeamCfg(teamId, "brand.wordmark"),
+    getTeamCfg(teamId, "feature.running_profile"),
   ]);
-  return buildTeamCopy({ teamCd, crewName, memberNoun, wordmark });
+  return buildTeamCopy({ teamCd, crewName, memberNoun, wordmark, runningProfile });
 });
 
 /**
