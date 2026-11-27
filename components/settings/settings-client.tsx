@@ -224,6 +224,7 @@ export function SettingsClient({
   weekStart,
   channels,
   copy,
+  intro,
 }: {
   isAdmin: boolean;
   /** 세션이 있는가 — 없으면 계정 그룹이 로그아웃 대신 로그인 한 줄이 된다 */
@@ -242,6 +243,8 @@ export function SettingsClient({
   channels: TeamChannels;
   /** 팀 문구 — 크루 이름·호칭·정식 이름(§lib/team-copy) */
   copy: SettingsCopy;
+  /** 맨 아래 크루 소개 한 줄(팀 설정 `brand.intro` — 로그인 화면과 같은 값). 없으면 줄째 안 그린다 */
+  intro: string | null;
 }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -463,9 +466,8 @@ export function SettingsClient({
           </span>
         </div>
         <span className="text-xs text-muted-foreground/70">{`© ${nowKST().year()} ${copy.orgName}`}</span>
-        <Micro className="text-muted-foreground/70">
-          운동을 좋아하는 사람들이 함께 만드는 팀
-        </Micro>
+        {/* 예전엔 로그인 화면과 다른 기강 문장이 여기 따로 박혀 있었다 — 이제 둘이 같은 팀 설정을 읽는다 */}
+        {intro ? <Micro className="text-muted-foreground/70">{intro}</Micro> : null}
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ const meta = {
   // 채널 주소는 팀 설정에서 온다 — 스토리는 예시 값
   args: {
     copy: GIGANG_COPY,
+    intro: "운동을 좋아하는 사람들이 모여 만든 스포츠 팀",
     channels: {
       kakao_open_chat: "https://open.kakao.com/o/example",
       instagram: "https://www.instagram.com/example",

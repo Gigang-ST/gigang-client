@@ -64,6 +64,8 @@ function render(
       weekStart: "sun",
       // 기강 팀 문구 — 이 테스트의 기대 문구(「기강 소개」 등)가 기강 것이다(§lib/team-copy)
       copy: GIGANG_COPY,
+      // 맨 아래 소개 한 줄(팀 설정 brand.intro) — 비우는 경우는 따로 본다
+      intro: "운동을 좋아하는 사람들이 모여 만든 스포츠 팀",
       // 채널 주소는 팀 설정에서 온다 — 테스트는 넷 다 있는 팀
       channels: {
         kakao_open_chat: "https://open.kakao.com/o/example",
@@ -211,9 +213,25 @@ describe("더보기 화면", () => {
     expect(t).not.toContain("읽지 않은 업데이트");
   });
 
+  // 소개 한 줄은 팀 설정(brand.intro)에서 온다 — 예전엔 기강 문장이 박혀 있어 모비 화면에도 떴다(#772)
+  it("소개 한 줄은 그 팀 값으로 푸터(버전 아래)에 서고, 비어 있으면 줄째 없다", () => {
+    const t = text(render({ intro: "산을 좋아하는 사람들이 모여 만든 트레일러닝 팀" }));
+    expect(t).toContain("산을 좋아하는 사람들이 모여 만든 트레일러닝 팀");
+    expect(t.indexOf("산을 좋아하는")).toBeGreaterThan(t.indexOf(APP_VERSION));
+
+    const empty = text(render({ intro: null }));
+    expect(empty).not.toContain("좋아하는 사람들");
+    // 다른 팀 값으로도, 옛 기강 문장으로도 물러나지 않는다
+    expect(empty).not.toContain("함께 만드는 팀");
+  });
+
   // 울산(모비) — 소개 지면(`/join`)이 기강 전용이라 「○○ 소개」 줄째 없고, 화면 어디에도 「기강」이 안 남는다(#658)
   it("다른 팀은 소개 줄이 없고 「기강」 글자가 하나도 없다", () => {
-    const html = render({ copy: ULSAN_COPY, showCrewIntro: false });
+    const html = render({
+      copy: ULSAN_COPY,
+      showCrewIntro: false,
+      intro: "산을 좋아하는 사람들이 모여 만든 트레일러닝 팀",
+    });
     const t = text(html);
     expect(t).not.toContain("소개");
     expect(html).not.toContain('href="/join"');

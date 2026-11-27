@@ -44,6 +44,7 @@ export const CFG_ORDER: readonly string[] = [
   "brand.name",
   "brand.member_noun",
   "brand.slogan",
+  "brand.intro",
   "brand.founded_dt",
   "brand.wordmark",
   "seo.title",
