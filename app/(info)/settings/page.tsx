@@ -41,7 +41,7 @@ export default async function SettingsPage() {
   // 잔액은 **스냅샷을 읽기만 한다**(회비 계산 로직은 손대지 않음).
   // 회비를 안 쓰는 팀은 「회비 내역」 줄째 안 그리고 잔액도 안 읽는다(팀 설정 feature.dues)
   const duesEnabled = await getTeamCfg(teamId, "feature.dues");
-  const [boardUnread, balSnapRes, channels, copy] = await Promise.all([
+  const [boardUnread, balSnapRes, channels, copy, intro] = await Promise.all([
     hasUnreadBoardPosts(member?.id, teamId),
     member && duesEnabled
       ? supabase
@@ -55,6 +55,8 @@ export default async function SettingsPage() {
       : Promise.resolve({ data: null, error: null }),
     getTeamChannels(teamId),
     getTeamCopy(),
+    // 맨 아래 소개 한 줄 — 로그인 화면과 같은 팀 설정(`brand.intro`)
+    getTeamCfg(teamId, "brand.intro"),
   ]);
 
   // 조회가 실패하면 점을 끈 채로 둔다 — 점 하나 때문에 설정 화면 전체를 못 열게 만들 수는
@@ -75,6 +77,7 @@ export default async function SettingsPage() {
       weekStart={weekStart}
       channels={channels}
       copy={pickTeamCopy(copy, SETTINGS_COPY_KEYS)}
+      intro={intro}
     />
   );
 }

@@ -1,4 +1,4 @@
-import { parseEventTime, todayKST } from "@/lib/dayjs";
+import { dayjs, parseEventTime, todayKST } from "@/lib/dayjs";
 
 import type { GhostMember } from "@/lib/queries/ghost-members";
 
@@ -40,6 +40,35 @@ function hashKey(value: string): number {
 export function daysAgoKST(lastActvDt: string, today: string = todayKST()): number {
   const diff = parseEventTime(today).diff(parseEventTime(lastActvDt), "day");
   return Math.max(0, diff);
+}
+
+/**
+ * 수배 포스터 문구 — 상태(빨간 줄) · 보조 줄 · 스크린리더 라벨.
+ *
+ * 세 갈래다. 가입 뒤 흔적이 있으면 「N일째 실종 / 최종 목격 날짜」. 흔적이 없고 팀 가입일부터 셌으면
+ * 「가입 후 무소식 / 가입 날짜 · N일」. 흔적이 없는데 **앱 참석 기록 시작일**부터 셌으면(그보다 먼저 들어온
+ * 기강 회원) 「N일째 무소식 / 목격 기록 없음」 — 그 날짜는 가입일이 아니라 「가입」이라 적으면 틀린다.
+ */
+export function ghostPosterLines(g: GhostMember): {
+  status: string;
+  detail: string;
+  aria: string;
+} {
+  const dt = dayjs(g.last_actv_dt).format("YY.M.DD");
+  if (!g.never_actv) {
+    const status = `${g.days_ago}일째 실종`;
+    return { status, detail: `최종 목격 ${dt}`, aria: status };
+  }
+  // 칸이 없으면(옛 함수 결과) 예전 화면처럼 「가입」으로 읽는다 — §GhostMember.since_join
+  if (g.since_join ?? true) {
+    return {
+      status: "가입 후 무소식",
+      detail: `가입 ${dt} · ${g.days_ago}일`,
+      aria: `가입 ${g.days_ago}일째 무소식`,
+    };
+  }
+  const status = `${g.days_ago}일째 무소식`;
+  return { status, detail: "목격 기록 없음", aria: status };
 }
 
 /**

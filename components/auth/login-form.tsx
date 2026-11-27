@@ -16,8 +16,11 @@ export function LoginForm({
   className,
   channels,
   logo,
+  intro,
   ...props
 }: React.ComponentPropsWithoutRef<"div"> & {
+  /** 로고 아래 크루 소개 한 줄(팀 설정 `brand.intro`). 없으면 줄째 안 그린다 */
+  intro: string | null;
   /** 이 팀 채널(팀 설정) — 로그인 화면 하단 아이콘 줄 */
   channels: TeamChannels;
   /** 이 팀 로고(`lib/team-logo.ts`) + 그림 설명(팀 설정의 크루 이름). 로고 표에 없는 팀이면 null — 빈 자리만 둔다 */
@@ -71,11 +74,12 @@ export function LoginForm({
         ) : (
           <div aria-hidden className="size-20" />
         )}
-        <p className="w-[280px] text-center text-[15px] leading-relaxed text-muted-foreground">
-          운동을 좋아하는 사람들이 모여
-          <br />
-          만든 스포츠 팀
-        </p>
+        {/* 문장이 팀마다 달라 줄을 손으로 끊지 않는다 — balance 가 두 줄 길이를 비슷하게 맞춘다(예전엔 「모여」 뒤 <br />) */}
+        {intro ? (
+          <p className="w-[280px] text-center text-[15px] leading-relaxed text-balance text-muted-foreground">
+            {intro}
+          </p>
+        ) : null}
       </div>
 
       {/* Buttons */}

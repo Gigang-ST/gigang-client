@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   GHOST_DISPLAY_LIMIT,
+  ghostPosterLines,
   arrangeGhosts,
   daysAgoKST,
 } from "@/lib/ghost-members";
@@ -108,5 +109,51 @@ describe("daysAgoKST", () => {
   it("미래 날짜는 음수로 내려가지 않는다", () => {
     // 데이터가 어긋나도 "-3일째 실종"이라고 찍히면 안 된다.
     expect(daysAgoKST("2026-09-20", "2026-09-18")).toBe(0);
+  });
+});
+
+describe("ghostPosterLines — 포스터 문구 세 갈래", () => {
+  const base: GhostMember = {
+    mem_id: "m",
+    mem_nm: "멤버",
+    avatar_url: null,
+    last_actv_dt: "2026-08-01",
+    days_ago: 118,
+    never_actv: false,
+  };
+
+  it("가입 뒤 흔적이 있으면 실종 + 최종 목격 날짜", () => {
+    expect(ghostPosterLines(base)).toEqual({
+      status: "118일째 실종",
+      detail: "최종 목격 26.8.01",
+      aria: "118일째 실종",
+    });
+  });
+
+  it("흔적 없이 팀 가입일부터 셌으면 「가입 후 무소식」", () => {
+    const g = { ...base, never_actv: true, since_join: true, last_actv_dt: "2026-10-12", days_ago: 46 };
+    expect(ghostPosterLines(g)).toEqual({
+      status: "가입 후 무소식",
+      detail: "가입 26.10.12 · 46일",
+      aria: "가입 46일째 무소식",
+    });
+  });
+
+  it("앱 참석 기록 시작일부터 셌으면 「가입」이라 쓰지 않는다", () => {
+    // 그 날짜(2026-06-30)는 가입일이 아니다 — 그보다 먼저 들어온 기강 회원
+    const g = { ...base, never_actv: true, since_join: false, last_actv_dt: "2026-06-30", days_ago: 150 };
+    const lines = ghostPosterLines(g);
+    expect(lines).toEqual({ status: "150일째 무소식", detail: "목격 기록 없음", aria: "150일째 무소식" });
+    expect(Object.values(lines).join(" ")).not.toContain("가입");
+  });
+
+  it("since_join 이 없는 옛 함수 결과는 예전 화면처럼 「가입 후 무소식」", () => {
+    // 옛 함수에선 흔적 없는 행의 날짜가 늘 계정 생성일이었다 — 배포가 마이그레이션보다 먼저여도 말이 안 바뀐다(#773 리뷰)
+    const g = { ...base, never_actv: true, last_actv_dt: "2026-10-12", days_ago: 40 };
+    expect(ghostPosterLines(g)).toEqual({
+      status: "가입 후 무소식",
+      detail: "가입 26.10.12 · 40일",
+      aria: "가입 40일째 무소식",
+    });
   });
 });
