@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -761,10 +761,12 @@ function LabeledInput({
   placeholder?: string;
   maxLength?: number;
 }) {
+  // 라벨과 입력칸을 이어 둔다 — 안 이으면 스크린리더가 칸 이름을 못 읽고(placeholder 로 대신), 라벨을 눌러도 칸으로 안 간다(PR #769 리뷰)
+  const id = useId();
   return (
     <div className="flex flex-col gap-1">
-      <Label>{label}</Label>
-      <Input value={value} placeholder={placeholder} maxLength={maxLength} onChange={(e) => onChange(e.target.value)} />
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} value={value} placeholder={placeholder} maxLength={maxLength} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }
