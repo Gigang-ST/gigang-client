@@ -49,6 +49,8 @@ import {
   type StartInfoDraft,
 } from "@/lib/validations/start-info";
 import { SignupProgress } from "@/components/auth/signup-progress";
+import { DEFAULT_TEAM_SIGNUP, hasRunningProfileStep, type TeamSignup } from "@/lib/team-signup";
+import type { RegularIntro } from "@/lib/regular-intro";
 import { StationCombobox } from "@/components/auth/station-combobox";
 import { Caption, H2 } from "@/components/common/typography";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
@@ -99,6 +101,12 @@ type MemberOnboardingFormProps = {
   existingPerson?: OnboardingExistingPerson | null;
   /** 「○○ 가입이세요? 여기로 →」 — 가입 폼 첫 화면에만 띄운다(팀 설정 signup.other_teams) */
   otherTeams?: OtherTeamLink[];
+  /** 팀 가입 설정(§lib/team-signup, #748) — 단계(러닝 프로필 유무)·가입 목적 칩. 생략하면 기본(6단계·로드러닝 목적) */
+  signup?: TeamSignup;
+  /** 회비 기능(팀 설정 feature.dues) — 끈 팀은 완료 화면에 계좌 등록 링크를 안 세운다(계좌는 회비 환급용이라) */
+  duesEnabled?: boolean;
+  /** 팀 설정 「정기 모임 안내」 — 참석 약속 단계 추천 문구(§lib/regular-intro) */
+  regularIntro?: RegularIntro | null;
 };
 
 /** 미리 채운 정보를 고치면 어디까지 바뀌는지 — 사람 정보는 가입한 모든 팀이 같이 쓴다 */
@@ -148,7 +156,12 @@ export function MemberOnboardingForm({
   existingPerson = null,
   otherTeams = [],
   copy,
+  signup = DEFAULT_TEAM_SIGNUP,
+  duesEnabled = true,
+  regularIntro = null,
 }: MemberOnboardingFormProps) {
+  // 러닝 프로필 단계가 없는 팀(모비)은 기본 정보 → 가입 목적으로 바로 간다
+  const runningProfile = hasRunningProfileStep(signup);
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next") ?? "/";
@@ -311,7 +324,7 @@ export function MemberOnboardingForm({
       form.setError("birthday", { message: birthday.error.issues[0]?.message });
       return;
     }
-    setStage("profile");
+    setStage(runningProfile ? "profile" : "purpose");
   };
 
   /**
@@ -417,7 +430,10 @@ export function MemberOnboardingForm({
   };
 
   if (stage === "success") {
-    const paceMsg = !wizardProfile.avgPaceCd
+    // 러닝 프로필을 안 받는 팀은 페이스 얘기 없이 기본 인사
+    const paceMsg = !runningProfile
+      ? "같이 다니다 보면 금방 익숙해져요.\n첫 모임에서 봬요 🙌"
+      : !wizardProfile.avgPaceCd
       ? "페이스는 같이 뛰다 보면 금방 알게 돼요.\n잘 오셨어요!"
       : wizardProfile.avgPaceCd === "P730_OVER"
         ? `슬로우러닝 환영이에요.\n${josa(copy.crewName, "은/는")} 같이 달리는 게 전부예요 🙌`
@@ -434,7 +450,7 @@ export function MemberOnboardingForm({
 
     return (
       <div className="flex flex-col gap-6">
-        <SignupProgress step={6} done />
+        <SignupProgress step="참석 약속" steps={signup.steps} done />
         <Confetti
           width={typeof window !== "undefined" ? window.innerWidth : 400}
           height={typeof window !== "undefined" ? window.innerHeight : 800}
@@ -515,12 +531,14 @@ export function MemberOnboardingForm({
                 일정 보러 가기
               </Link>
               <PwaInstallPrompt variant="inline" title={copy.installPromptTitle} />
-              <Link
-                href="/profile/bank"
-                className="text-center text-xs font-medium text-muted-foreground underline"
-              >
-                계좌 정보 지금 등록하기
-              </Link>
+              {duesEnabled && (
+                <Link
+                  href="/profile/bank"
+                  className="text-center text-xs font-medium text-muted-foreground underline"
+                >
+                  계좌 정보 지금 등록하기
+                </Link>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -531,7 +549,7 @@ export function MemberOnboardingForm({
   if (stage === "pledge") {
     return (
       <div className="flex flex-col gap-6">
-        <SignupProgress step={6} />
+        <SignupProgress step="참석 약속" steps={signup.steps} />
         <Card className="bg-card border-border shadow-sm">
           <CardContent className="pt-6">
             {submitError ? (
@@ -539,6 +557,7 @@ export function MemberOnboardingForm({
             ) : null}
             <AttendancePledgeStep
               gatherings={gatherings}
+              regularIntro={regularIntro}
               onComplete={handlePledgeComplete}
               submitting={submitting}
             />
@@ -551,7 +570,7 @@ export function MemberOnboardingForm({
   if (stage === "profile") {
     return (
       <div className="flex flex-col gap-6">
-        <SignupProgress step={4} />
+        <SignupProgress step="러닝 프로필" steps={signup.steps} />
         <Card className="bg-card border-border shadow-sm">
           <CardHeader>
             <H2>러닝 프로필</H2>
@@ -674,7 +693,7 @@ export function MemberOnboardingForm({
   if (stage === "purpose") {
     return (
       <div className="flex flex-col gap-6">
-        <SignupProgress step={5} />
+        <SignupProgress step="가입 목적" steps={signup.steps} />
         <Card className="bg-card border-border shadow-sm">
           <CardHeader>
             <H2>가입 목적</H2>
@@ -731,7 +750,7 @@ export function MemberOnboardingForm({
               >
                 <Label>{copy.crewName}에서 뭘 하고 싶으세요?</Label>
                 <div className="flex flex-wrap gap-2">
-                  {JOIN_PURP_CODES.map((code) => {
+                  {signup.joinPurposes.map((code) => {
                     const selected = wizardProfile.joinPurpCds.includes(code);
                     return (
                       <Chip
@@ -778,7 +797,7 @@ export function MemberOnboardingForm({
                   type="button"
                   variant="outline"
                   className="flex-1"
-                  onClick={() => setStage("profile")}
+                  onClick={() => setStage(runningProfile ? "profile" : "details")}
                 >
                   <ChevronLeft className="size-4" />
                   이전
@@ -815,6 +834,7 @@ export function MemberOnboardingForm({
     return (
       <PhoneStep
         otherTeams={otherTeams}
+        steps={signup.steps}
         initialPhone={confirmedPhone}
         loading={phoneLoading}
         serverError={phoneServerError}
@@ -826,7 +846,7 @@ export function MemberOnboardingForm({
   // details 단계 — 이 폼은 이름·성별·생년월일·이메일만 담당한다.
   return (
     <div className={cn("flex flex-col gap-6")}>
-      <SignupProgress step={3} />
+      <SignupProgress step="기본 정보" steps={signup.steps} />
       {/* 이미 있는 사람은 연락처 단계 없이 여기서 시작한다 — 그땐 여기가 첫 화면이라 안내를 띄운다 */}
       {existingPerson ? <OtherTeamHint teams={otherTeams} /> : null}
       <Card className="bg-card border-border shadow-sm">
@@ -983,12 +1003,15 @@ export function MemberOnboardingForm({
  */
 function PhoneStep({
   otherTeams,
+  steps,
   initialPhone,
   loading,
   serverError,
   onSubmit,
 }: {
   otherTeams: OtherTeamLink[];
+  /** 팀 가입 단계 — 진행바(§lib/team-signup) */
+  steps: TeamSignup["steps"];
   initialPhone: string;
   loading: boolean;
   serverError: string | null;
@@ -1017,7 +1040,7 @@ function PhoneStep({
 
   return (
     <div className="flex flex-col gap-6">
-      <SignupProgress step={3} />
+      <SignupProgress step="기본 정보" steps={steps} />
       <OtherTeamHint teams={otherTeams} />
       <Card className="bg-card border-border shadow-sm">
         <CardHeader>

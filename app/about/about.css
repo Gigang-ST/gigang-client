@@ -46,6 +46,7 @@
 .ab-logo { width: 84px; height: 84px; margin-bottom: auto; border-radius: 50%; }
 .ab-sl { color: var(--ab-mute); font-weight: 700; letter-spacing: 0.14em; font-size: 13px; margin-bottom: 14px; }
 .ab-h1 { font-size: 46px; line-height: 1.15; font-weight: 900; letter-spacing: -0.03em; }
+.ab-h1 em { letter-spacing: 0.06em; margin-right: 0.04em; }
 .ab-lead { font-size: 19px !important; color: #fff !important; font-weight: 600; margin: 24px 0 0 !important; }
 .ab-lead span { display: block; color: #cfcfcf; font-weight: 400; }
 .ab-cta { display: inline-block; margin-top: 32px; background: var(--ab-org); color: #000 !important; font-weight: 800; font-size: 16px; padding: 14px 26px; border-radius: 999px; }

@@ -445,6 +445,18 @@ export function getJoinPurposeLabels(
   return getJoinPurposeLabelsFromCds(profile.join_purp_cds);
 }
 
+/**
+ * 팀이 러닝 프로필을 안 쓰면(팀 설정 `feature.running_profile` 끔) 페이스·거리·역을 비운다 — 가입 목적은 남긴다.
+ * 줄·칩·행을 만드는 함수들(`getRunningProfileRows`·`…Chips`·`…Line`·`getMemberIntro`)이 이 값을 받으면 전부 「없음」으로
+ * 처리해, 카드·간단 카드·홈 리드에서 러닝 프로필이 저절로 빠진다. 값은 사람 것이라 지우지 않고 보여 주지만 않는다.
+ */
+export function forTeamRunningProfile<
+  T extends { avg_pace_cd: string | null; avg_run_dist_km: number | null; near_stn_nm?: string | null },
+>(profile: T | null | undefined, enabled: boolean): T | null {
+  if (!profile) return null;
+  return enabled ? profile : { ...profile, avg_pace_cd: null, avg_run_dist_km: null, near_stn_nm: null };
+}
+
 /** 소개할 내용이 하나도 없으면 null — 섹션 자체를 그리지 않는다 */
 export function getMemberIntro(
   profile: {

@@ -13,8 +13,13 @@ import { ONBOARDING_COPY_KEYS, pickTeamCopy } from "@/lib/team-copy";
 import { getTeamChannels, getTeamKakaoPassword } from "@/lib/team-social";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 import { teamLinkOrigin } from "@/lib/team-host";
+import { getRequestTeamSignup } from "@/lib/queries/team-signup";
 
 import { MemberOnboardingForm } from "@/components/auth/member-onboarding-form";
+import { InactiveReasonNote } from "@/components/common/inactive-reason-note";
+import { ReactivationRequestButton } from "@/components/common/reactivation-request-button";
+import { Body, Caption } from "@/components/common/typography";
+import { getVisibleInactiveReason, statusReasonLabel } from "@/lib/inactive-notice";
 import { safeNextPath } from "@/lib/safe-redirect";
 
 async function OnboardingContent({
@@ -34,6 +39,26 @@ async function OnboardingContent({
 
   if (!user) {
     redirect(`/auth/login?next=${encodeURIComponent(safeNext)}`);
+  }
+
+  // 탈퇴 회원은 홈으로 보내지 않고 그 자리에서 재가입 요청을 안내한다(#571·#767).
+  // 홈으로 보내면 탭마다 차단 화면이 서 있을 뿐 "다시 들어올 수 있다"는 말이 어디에도 없다.
+  // 가입 폼을 다시 태우지 않는다 — 소속 행(team_mem_rel)이 남아 있어 운영진이 활성으로 되돌리는 길뿐이다.
+  if (member && member.status === "left" && !previewSuccess) {
+    return (
+      <div className="flex min-h-svh w-full items-center justify-center bg-background px-6">
+        <div className="flex w-full max-w-sm flex-col items-center gap-3 text-center">
+          <Body className="font-semibold">탈퇴한 상태예요</Body>
+          <Caption>다시 함께하려면 재가입을 요청해 주세요. 운영진이 확인하면 활동을 다시 시작할 수 있어요.</Caption>
+          <InactiveReasonNote
+            reason={getVisibleInactiveReason(member)}
+            label={statusReasonLabel(member.status)}
+            className="max-w-xs"
+          />
+          <ReactivationRequestButton kind="left" />
+        </div>
+      </div>
+    );
   }
 
   // 이미 가입된 회원(active/inactive 등)은 온보딩 불필요 (단, 미리보기 모드는 예외)
@@ -83,7 +108,7 @@ async function OnboardingContent({
   // 오픈채팅 주소·비밀번호는 이 팀 것(팀 설정) — 없는 팀은 안내를 안 그린다.
   // 이미 있는 사람(다른 팀 회원·이 팀에서 삭제됐던 회원)이면 사람 정보를 미리 채운 폼을 보여 준다 —
   // 바로 가입시키지 않고, 팀 정보는 새로 받고, 본인이 마지막에 가입을 누른다(onboardingJoinTeam).
-  const [gatherings, channels, kakaoChatPassword, existingPerson, otherTeamCfg, h, copy] = await Promise.all([
+  const [gatherings, channels, kakaoChatPassword, existingPerson, otherTeamCfg, h, copy, duesEnabled, signup, regularIntro] = await Promise.all([
     getOpenGatheringsForPledge(),
     getTeamChannels(teamId),
     getTeamKakaoPassword(teamId),
@@ -92,6 +117,12 @@ async function OnboardingContent({
     headers(),
     // 팀 문구 — 가입 위저드의 크루 이름·설치 안내(§lib/team-copy)
     getTeamCopy(),
+    // 회비 기능 — 끈 팀(울산)은 완료 화면에 계좌 등록 링크를 안 세운다(계좌는 회비 환급용이라)
+    getTeamCfg(teamId, "feature.dues"),
+    // 팀 가입 설정 — 단계(러닝 프로필 사용 여부)·가입 목적 칩(§lib/team-signup, #748)
+    getRequestTeamSignup(),
+    // 참석 약속 단계의 「정기런(격주 수요일 저녁)을 추천해요」 — 팀 설정(§lib/regular-intro)
+    getTeamCfg(teamId, "gathering.regular_intro"),
   ]);
   // 「○○ 가입이세요? 여기로 →」 — 다른 팀 주소의 로그인으로 보낸다(주소마다 로그인이 따로라 거기서 다시 로그인한다).
   // 주소는 접속 환경(운영·dev·로컬)에 맞는 그 팀 주소로 만든다.
@@ -119,6 +150,9 @@ async function OnboardingContent({
           kakaoOpenChatUrl={channels.kakao_open_chat ?? null}
           gatherings={gatherings}
           copy={pickTeamCopy(copy, ONBOARDING_COPY_KEYS)}
+          signup={signup}
+          duesEnabled={duesEnabled}
+          regularIntro={regularIntro}
         />
       </div>
     </div>

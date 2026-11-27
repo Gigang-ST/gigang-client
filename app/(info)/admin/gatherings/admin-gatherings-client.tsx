@@ -6,6 +6,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, ChevronsUpDown, Plus, Users, X
 import { toast } from "sonner";
 
 import { currentMonthKST, dayjs, nextMonthStr, prevMonthStr } from "@/lib/dayjs";
+import { classifyCancelTiming, minutesFromStart } from "@/lib/gathering/cancel-timing";
 import { deriveCanceledAttendees } from "@/lib/gathering/derive-canceled-attendees";
 import { sortWaitlist } from "@/lib/gathering/waitlist";
 import { createClient } from "@/lib/supabase/client";
@@ -13,7 +14,9 @@ import { gthrTypeLabels, type GthrType } from "@/lib/validations/gathering";
 
 import {
   addGatheringAttendance,
+  getMemberNoshowCount,
   listGatheringWaitlist,
+  markGatheringNoshow,
   removeGatheringAttendance,
   type GatheringWaitlistRow,
 } from "@/app/actions/admin/manage-gathering-attendance";
@@ -24,6 +27,7 @@ import {
   type PendingApplicationGathering,
 } from "@/app/actions/gathering/manage-application";
 
+import { AttendanceRemoveDialog, type AttendanceRemoveMode } from "@/components/admin/attendance-remove-dialog";
 import { Avatar } from "@/components/common/avatar";
 import {
   ResponsiveDrawer,
@@ -78,6 +82,8 @@ type CanceledAttendee = {
   avatar_url: string | null;
   evt_at: string;
   reason_txt: string | null;
+  /** 운영진이 노쇼로 처리해 뺀 취소인가(#759). */
+  noshow_yn: boolean;
 };
 
 /** 모임 타입 배지 스타일 — 시맨틱 토큰만 사용 (하드코딩 색 금지). */
@@ -153,6 +159,9 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
   const [addOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [removingMemId, setRemovingMemId] = useState<string | null>(null);
+  /** 참석 빼기 모달 대상 — 참석 취소(사유 선택) / 노쇼 처리(사유 필수). null 이면 닫힘. */
+  const [removeTarget, setRemoveTarget] = useState<{ memId: string; mode: AttendanceRemoveMode } | null>(null);
+  const [noshowCount, setNoshowCount] = useState<number | null>(null);
 
   // 처리 대기가 남은 모임 — **월 필터를 무시하고** 팀 전체에서 모은다.
   // 12월 송년회 신청은 10·11월에 들어오므로, 월에 갇히면 다른 달 대기 건을 영영 못 본다.
@@ -260,7 +269,7 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase as any)
         .from("gthr_attd_hist")
-        .select("mem_id, evt_cd, evt_at, reason_txt, mem_mst(mem_id, mem_nm, avatar_url)")
+        .select("mem_id, evt_cd, evt_at, reason_txt, noshow_yn, mem_mst(mem_id, mem_nm, avatar_url)")
         .eq("gthr_id", gthrId),
     ]);
 
@@ -277,6 +286,7 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
           avatar_url: m?.avatar_url ?? null,
           evt_at: h.evt_at,
           reason_txt: h.reason_txt,
+          noshow_yn: h.noshow_yn === true,
         };
       }),
     );
@@ -356,33 +366,46 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
     );
   };
 
-  const handleRemoveAttendee = async (memId: string) => {
+  /** 참석자 줄의 「참석 취소」「노쇼」 버튼 — 사유 입력 모달을 연다(실제 처리는 submitRemove). */
+  const openRemoveDialog = (memId: string, mode: AttendanceRemoveMode) => {
     if (!selected || removingMemId) return;
+    setNoshowCount(null);
+    setRemoveTarget({ memId, mode });
+    if (mode === "noshow") {
+      const gthrId = selected.gthr_id;
+      getMemberNoshowCount(memId)
+        .then((n) => {
+          if (currentGthrRef.current === gthrId) setNoshowCount(n);
+        })
+        .catch(() => {}); // 횟수는 참고 정보 — 못 읽어도 처리는 막지 않는다
+    }
+  };
+
+  const submitRemove = async (reason: string) => {
+    if (!selected || !removeTarget || removingMemId) return;
+    const { memId, mode } = removeTarget;
     const gthrId = selected.gthr_id;
     const target = attendees.find((a) => a.mem_id === memId);
     const memName = target?.mem_nm ?? "이름 없음";
-    const gDate = dayjs(selected.stt_at).tz("Asia/Seoul").format("M/D(ddd)");
-    // 관리자 취소도 사유를 남길 수 있게 — 프롬프트 취소(null)면 중단, 비워두면 사유 없이 진행.
-    // 입력한 사유는 취소 이력에 저장되고 팀 멤버에게 공개된다(멤버 취소와 동일 정책).
-    const reason = window.prompt(
-      `${memName}님의 ${gDate} "${selected.gthr_nm}" 참석을 취소합니다.\n취소 사유를 남길 수 있어요 (선택):`,
-      "",
-    );
-    if (reason === null) return;
+    const isNoshow = mode === "noshow";
 
     setRemovingMemId(memId);
     const prevAttendees = attendees;
     setAttendees((prev) => prev.filter((a) => a.mem_id !== memId));
     syncGatheringCount(gthrId, -1);
 
-    const result = await removeGatheringAttendance(gthrId, memId, reason || undefined);
+    // 취소 사유는 선택(비우면 사유 없이), 노쇼 사유는 필수 — 입력한 사유는 취소 이력에 저장돼 팀 멤버에게 공개된다.
+    const result = isNoshow
+      ? await markGatheringNoshow(gthrId, memId, reason)
+      : await removeGatheringAttendance(gthrId, memId, reason || undefined);
     if (!result.ok) {
       // 참가자 목록 롤백은 아직 같은 모임을 보고 있을 때만 (전환됐으면 이미 새 목록으로 교체됨)
       if (currentGthrRef.current === gthrId) setAttendees(prevAttendees);
       syncGatheringCount(gthrId, 1); // 리스트 카운트는 gthr_id 기준이라 항상 안전
-      toast.error(result.message ?? "참석 취소에 실패했습니다");
+      toast.error(result.message ?? (isNoshow ? "노쇼 처리에 실패했습니다" : "참석 취소에 실패했습니다"));
     } else {
-      toast.success(`${memName}님 참석을 취소했습니다`);
+      toast.success(isNoshow ? `${memName}님을 노쇼 처리했습니다` : `${memName}님 참석을 취소했습니다`);
+      setRemoveTarget(null);
       // 방금 취소가 새 이력(cancel)으로 남았으므로 취소 목록을 새로 불러온다.
       if (currentGthrRef.current === gthrId) loadCancelHistory(gthrId);
     }
@@ -608,16 +631,27 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
                           {a.mem_nm ?? "이름 없음"}
                         </Body>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleRemoveAttendee(a.mem_id)}
-                        disabled={removingMemId === a.mem_id}
-                        aria-label={`${a.mem_nm ?? "이름 없음"} 참석 취소`}
-                        className="text-muted-foreground active:text-destructive"
-                      >
-                        <X className="size-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openRemoveDialog(a.mem_id, "noshow")}
+                          disabled={removingMemId === a.mem_id}
+                          aria-label={`${a.mem_nm ?? "이름 없음"} 노쇼 처리`}
+                        >
+                          노쇼
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => openRemoveDialog(a.mem_id, "cancel")}
+                          disabled={removingMemId === a.mem_id}
+                          aria-label={`${a.mem_nm ?? "이름 없음"} 참석 취소`}
+                          className="text-muted-foreground active:text-destructive"
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -684,8 +718,14 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
                       />
                       <div className="flex flex-col gap-0.5">
                         <Body className="text-muted-foreground">
-                          {c.mem_nm ?? "이름 없음"} · {dayjs(c.evt_at).tz("Asia/Seoul").format("M/D HH:mm")} 취소
+                          {c.mem_nm ?? "이름 없음"} · {dayjs(c.evt_at).tz("Asia/Seoul").format("M/D HH:mm")} {c.noshow_yn ? "노쇼 처리" : "취소"}
                         </Body>
+                        {/* 시작 시각 이후 취소는 눈에 띄게 — 노쇼 판단용(#758). 시작 전 취소는 평범해서 말을 달지 않는다. */}
+                        {selected && classifyCancelTiming(c.evt_at, selected.stt_at) === "after_start" && (
+                          <Micro className="font-semibold text-destructive">
+                            모임 시작 {minutesFromStart(c.evt_at, selected.stt_at)}분 뒤 취소
+                          </Micro>
+                        )}
                         {c.reason_txt && <Micro>사유: {c.reason_txt}</Micro>}
                       </div>
                     </div>
@@ -696,6 +736,22 @@ export function AdminGatheringsClient({ teamId }: { teamId: string }) {
           </div>
         </ResponsiveDrawerContent>
       </ResponsiveDrawer>
+
+      {/* 참석 빼기 모달 — 참석 취소(사유 선택) / 노쇼 처리(사유 필수). window.prompt 는 자동화 브라우저에서 빈 값이 된다(#759). */}
+      <AttendanceRemoveDialog
+        open={removeTarget !== null}
+        onOpenChange={(v) => {
+          if (!v) setRemoveTarget(null);
+        }}
+        mode={removeTarget?.mode ?? "cancel"}
+        memName={attendees.find((a) => a.mem_id === removeTarget?.memId)?.mem_nm ?? "이름 없음"}
+        gatheringLabel={
+          selected ? `${dayjs(selected.stt_at).tz("Asia/Seoul").format("M/D(ddd)")} "${selected.gthr_nm}"` : ""
+        }
+        noshowCount={noshowCount}
+        pending={removingMemId !== null}
+        onSubmit={submitRemove}
+      />
     </div>
   );
 }

@@ -308,3 +308,39 @@ describe("기록 종목이 트레일만인 팀의 카드", () => {
     expect(edit).toContain("기록 추가");
   });
 });
+
+/** 팀이 러닝 프로필을 안 쓰면(팀 설정 feature.running_profile 끔 — 모비) 카드 어디에도 역·페이스·거리가 없다(2026-11-26) */
+describe("러닝 프로필을 끈 팀", () => {
+  const PROFILE = {
+    avg_pace_cd: "P600",
+    avg_run_dist_km: 8,
+    near_stn_nm: "합정",
+    join_purp_cds: ["MT_MATE"],
+    join_purp_txt: null,
+  };
+  const renderOff = (edit: boolean) =>
+    renderToStaticMarkup(
+      createElement(MemberCardDetail, {
+        memId: "11111111-1111-4111-8111-111111111111",
+        data: { ...BASE, running_profile: PROFILE },
+        copy: { ...COPY, runningProfile: false },
+        ...(edit ? { edit: EDIT } : {}),
+      }),
+    );
+
+  it("공개판·편집판 모두 역·페이스·거리를 안 그리고, 섹션은 「가입 목적」으로 남는다", () => {
+    for (const html of [renderOff(false), renderOff(true)]) {
+      for (const word of ["평균 페이스", "평균 거리", "가까운 역", "합정", ">러닝 프로필"]) {
+        expect(html).not.toContain(word);
+      }
+      expect(html).toContain(">가입 목적");
+      expect(html).toContain("산 메이트");
+    }
+  });
+
+  it("켠 팀(기강)은 그대로 — 역·페이스가 보인다", () => {
+    const html = render({ running_profile: PROFILE });
+    expect(html).toContain("합정역");
+    expect(html).toContain(">러닝 프로필");
+  });
+});

@@ -5,7 +5,7 @@ import { josaOf } from "@/lib/josa";
  * (`lib/__tests__/legal-docs.test.ts`). 지면은 `app/(info)/terms|privacy|policy/page.tsx`, 값을 모으는 건 `lib/queries/legal.ts`.
  *
  * 2026-11-15 전에는 세 문서가 기강 고정이라(「러닝크루 기강과 기강 앱(gigang.team)」·책임자 이현근·86년생) 울산 회원도 기강 문서에
- * 동의하게 됐다. 결정(2026-11-11 hglee): 울산 모보브의 운영 주체·개인정보 책임자는 송창준 — 팀 설정 `legal.operator` 로 넣는다.
+ * 동의하게 됐다. 결정(2026-11-11 hglee): 울산 모비의 운영 주체·개인정보 책임자는 송창준 — 팀 설정 `legal.operator` 로 넣는다.
  *
  * ## 무엇이 팀마다 갈리나
  * - **크루 이름·앱 주소·전당/사진 지면 이름** — 팀 문구(`TeamCopy`)와 요청 주소에서.
@@ -39,10 +39,22 @@ export type LegalContext = {
   duesEnabled: boolean;
   /** 팀 설정 `feature.titles` */
   titlesEnabled: boolean;
+  /**
+   * 팀 설정 `feature.running_profile` — 끈 팀(모비)은 러닝 프로필을 받지 않으므로 수집·공개 항목에서 뺀다. 생략하면 켬
+   * (기강 문서는 2026-11-15 이전 문장 그대로).
+   */
+  runningProfileEnabled?: boolean;
 };
 
 /** 문서별 시행일·변경 이력 */
 type DocMeta = { effectiveDate: string; history: string[] };
+
+/** 고정 문장 목록, 또는 크루 이름 등 팀 문구를 받아 만드는 목록 */
+type TeamLines = string[] | ((ctx: Pick<LegalContext, "crewName" | "galleryName">) => string[]);
+
+function linesOf(v: TeamLines | undefined, ctx: LegalContext): string[] | undefined {
+  return typeof v === "function" ? v(ctx) : v;
+}
 
 /** 팀이 정한 문장. 칸이 비면 중립 문장(`NEUTRAL_LEGAL`) */
 type TeamLegal = {
@@ -54,8 +66,9 @@ type TeamLegal = {
   operatorFallback?: string;
   contactFallback?: string;
   termsAge?: string[];
-  privacyAge?: string[];
-  services?: string[];
+  /** 문장에 크루 이름·사진 지면 이름이 들어가면 함수로 둔다 — 팀 설정에서 이름을 바꾸면 약관도 따라온다(PR #745 리뷰) */
+  privacyAge?: TeamLines;
+  services?: TeamLines;
   meta?: Partial<Record<LegalDocKind, DocMeta>>;
 };
 
@@ -90,6 +103,29 @@ const TEAM_LEGAL: Readonly<Record<string, TeamLegal>> = {
         effectiveDate: "2026-09-30",
         history: ["2026-03-02 제정", "2026-09-30 개정 — 사진 게시·제재 절차·비활성 조항 정비"],
       },
+    },
+  },
+  // 울산 모비 — 2026-11-23 송창준 회신으로 확정. 가입 나이는 기강과 같다(가입 폼 검증 `lib/validations/member.ts` 도 같은 기준).
+  // 연락처는 기강처럼 이메일만 싣는다(약관은 비로그인도 본다). 시행일 = 울산 공개일.
+  ulsan: {
+    contactFallback: "zkzkdksek2@naver.com",
+    termsAge: ["1986년생부터 성인까지 가입할 수 있습니다.", "가입 자격을 충족하지 않는 사실이 확인되면 가입이 취소될 수 있습니다."],
+    // 크루 이름·사진 지면 이름은 팀 문구에서 — 팀 설정에서 이름을 바꾸면 약관도 따라온다
+    privacyAge: ({ crewName }) => [
+      `${crewName}${josaOf(crewName, "은/는")} 1986년생부터 성인까지 가입할 수 있으며, 미성년자의 개인정보는 수집하지 않습니다.`,
+      "가입 연령에 해당하지 않는 사실이 확인되면 해당 정보를 지체 없이 파기합니다.",
+    ],
+    services: ({ galleryName }) => [
+      "정기 및 비정기 트레일러닝·산행 모임 운영",
+      "일정·공지 제공 및 앱 알림(웹 푸시) 발송",
+      "대회 기록 관리 및 크루 내 기록 랭킹",
+      `사진·글 공유(${galleryName}), 댓글`,
+      "크루 프로젝트 운영",
+    ],
+    meta: {
+      terms: { effectiveDate: "2026-11-28", history: ["2026-11-28 제정"] },
+      privacy: { effectiveDate: "2026-11-28", history: ["2026-11-28 제정"] },
+      policy: { effectiveDate: "2026-11-28", history: ["2026-11-28 제정"] },
     },
   },
 };
@@ -128,6 +164,17 @@ export function resolveContact(ctx: Pick<LegalContext, "teamCd" | "contact">): s
   return ctx.contact?.trim() || teamLegal(ctx.teamCd).contactFallback || null;
 }
 
+/**
+ * 홈 푸터의 운영·문의 줄 — 약관과 같은 값. 운영 주체가 **어디에도 없을 때만**(팀 설정도 그 팀 코드 기본값도 없음) 줄째 안 싣는다.
+ * 값이 「크루 운영진」인지로 가르지 않는다 — 운영진이 그 글자를 직접 적으면 약관엔 나오는데 푸터만 빠졌다(PR #747 리뷰).
+ */
+export type FooterContacts = { operator: string | null; contact: string | null };
+
+export function resolveFooterContacts(ctx: Pick<LegalContext, "teamCd" | "operator" | "contact">): FooterContacts {
+  const operator = ctx.operator?.trim() || teamLegal(ctx.teamCd).operatorFallback || null;
+  return { operator, contact: resolveContact(ctx) };
+}
+
 /** 번호는 실린 조항 순서대로 매긴다 — 회비 조항이 빠지면 뒤 번호가 당겨진다 */
 function numbered(sections: (Omit<LegalSection, "id"> | false)[]): LegalSection[] {
   return sections.filter((s): s is Omit<LegalSection, "id"> => s !== false).map((s, i) => ({ id: i + 1, ...s }));
@@ -146,7 +193,8 @@ export function buildTermsDoc(ctx: LegalContext): LegalDoc {
   const org = team.orgName ?? ctx.crewName;
   const statesOperator = team.statesOperatorInTerms ?? NEUTRAL_LEGAL.statesOperatorInTerms;
   const app = `${ctx.crewName} 앱`;
-  const publicItems = `회원의 이름, 프로필 사진, 한마디, 러닝 프로필, 대회 기록${ctx.titlesEnabled ? ", 칭호는" : "은"}`;
+  const profileItem = ctx.runningProfileEnabled === false ? "가입 목적" : "러닝 프로필";
+  const publicItems = `회원의 이름, 프로필 사진, 한마디, ${profileItem}, 대회 기록${ctx.titlesEnabled ? ", 칭호는" : "은"}`;
 
   return {
     heading: "이용약관",
@@ -170,7 +218,7 @@ export function buildTermsDoc(ctx: LegalContext): LegalDoc {
       },
       {
         title: "서비스",
-        details: team.services ?? [
+        details: linesOf(team.services, ctx) ?? [
           "정기 및 비정기 모임 운영",
           "일정·공지 제공 및 앱 알림(웹 푸시) 발송",
           "대회 기록 관리 및 크루 내 기록 랭킹",
@@ -260,7 +308,9 @@ export function buildPrivacyDoc(ctx: LegalContext): LegalDoc {
         details: [
           "회원 정보: 이름, 연락처, 생년월일, 성별, 이메일, 프로필 사진, 소셜 로그인 식별자(카카오·구글)",
           ...(ctx.duesEnabled ? ["회비 정보: 계좌번호(선택), 은행명(선택), 회비 입금 내역(입금자명·금액·일시)"] : []),
-          "러닝 프로필(선택): 가까운 역, 평균 페이스·거리, 가입 목적, 가입 경로",
+          ctx.runningProfileEnabled === false
+            ? "가입 정보(선택): 가입 목적, 가입 경로"
+            : "러닝 프로필(선택): 가까운 역, 평균 페이스·거리, 가입 목적, 가입 경로",
           "활동 정보: 모임 참석 이력, 대회 기록, 기록증 사진, UTMB 프로필 주소 및 지수, 게시한 사진·글·댓글",
           "자동 수집 정보: 접속 기록(IP 주소, 접속 일시, 브라우저 정보), 쿠키, 웹 푸시 구독 정보",
         ],
@@ -306,7 +356,7 @@ export function buildPrivacyDoc(ctx: LegalContext): LegalDoc {
           contact
             ? "요청은 아래 책임자 연락처로 접수하며, 접수일로부터 10일 이내에 조치 결과를 알려드립니다."
             : "요청은 운영진에게(앱의 「건의하기」로도) 접수하며, 접수일로부터 10일 이내에 조치 결과를 알려드립니다.",
-          "이름·프로필 사진·러닝 프로필 등은 앱의 프로필 수정 화면에서 직접 정정할 수 있습니다.",
+          `이름·프로필 사진·${ctx.runningProfileEnabled === false ? "가입 목적" : "러닝 프로필"} 등은 앱의 프로필 수정 화면에서 직접 정정할 수 있습니다.`,
         ],
       },
       {
@@ -321,7 +371,7 @@ export function buildPrivacyDoc(ctx: LegalContext): LegalDoc {
           "브라우저 설정에서 쿠키 저장을 거부할 수 있으나, 이 경우 로그인이 유지되지 않아 서비스 이용이 제한됩니다.",
         ],
       },
-      { title: "가입 연령", details: [...(team.privacyAge ?? NEUTRAL_LEGAL.privacyAge)] },
+      { title: "가입 연령", details: [...(linesOf(team.privacyAge, ctx) ?? NEUTRAL_LEGAL.privacyAge)] },
       { title: "개인정보 보호 책임자", details: [resolveOperator(ctx), contactLine(contact)] },
       {
         title: "권익침해 구제 방법",

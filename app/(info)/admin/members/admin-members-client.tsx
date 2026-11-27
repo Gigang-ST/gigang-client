@@ -19,7 +19,8 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 
-import { dayjs } from "@/lib/dayjs";
+import { dayjs, formatKST } from "@/lib/dayjs";
+import type { ReactivationRequest } from "@/lib/reactivation-request";
 import { createClient } from "@/lib/supabase/client";
 import {
   PACE_LABELS,
@@ -308,7 +309,16 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function OnboardingSection({ memId, teamId }: { memId: string; teamId: string }) {
+function OnboardingSection({
+  memId,
+  teamId,
+  runningProfileEnabled,
+}: {
+  memId: string;
+  teamId: string;
+  /** 팀이 러닝 프로필을 쓰는가(팀 설정 feature.running_profile) — 끈 팀은 역·거리·페이스를 읽지도 그리지도 않는다 */
+  runningProfileEnabled: boolean;
+}) {
   const [profile, setProfile] = useState<OnboardingProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -320,11 +330,13 @@ function OnboardingSection({ memId, teamId }: { memId: string; teamId: string })
     // RLS(mem_onbd_prf_select_team_admin · team_mem_onbd_rel_select_team_admin)가 팀 관리자에게
     // 팀원 온보딩 조회를 허용한다. 러닝 프로필은 사람 것, 가입 목적·유입 경로는 **이 팀 것**만 읽는다.
     Promise.all([
-      supabase
-        .from("mem_onbd_prf")
-        .select("near_stn_nm, avg_run_dist_km, avg_pace_cd")
-        .eq("mem_id", memId)
-        .maybeSingle(),
+      runningProfileEnabled
+        ? supabase
+            .from("mem_onbd_prf")
+            .select("near_stn_nm, avg_run_dist_km, avg_pace_cd")
+            .eq("mem_id", memId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
       supabase
         .from("team_mem_onbd_rel")
         .select("join_purp_cds, join_purp_txt, join_src_cd, join_src_txt")
@@ -347,7 +359,7 @@ function OnboardingSection({ memId, teamId }: { memId: string; teamId: string })
     return () => {
       alive = false;
     };
-  }, [memId, teamId]);
+  }, [memId, teamId, runningProfileEnabled]);
 
   const paceLabel = profile?.avg_pace_cd
     ? (PACE_LABELS[profile.avg_pace_cd as keyof typeof PACE_LABELS] ??
@@ -365,14 +377,15 @@ function OnboardingSection({ memId, teamId }: { memId: string; teamId: string })
 
   return (
     <div className="flex flex-col gap-3">
-      <SectionLabel>러닝 프로필</SectionLabel>
+      <SectionLabel>{runningProfileEnabled ? "러닝 프로필" : "가입 정보"}</SectionLabel>
       {loading ? (
         <Skeleton className="h-20 w-full rounded-2xl" />
       ) : !profile ? (
         <EmptyState variant="inline" message="온보딩 정보 없음" />
       ) : (
         <CardItem className="flex flex-col gap-2.5 p-3.5">
-          {/* 역 · 거리 · 페이스 — 한 줄 미니 스탯 */}
+          {/* 역 · 거리 · 페이스 — 한 줄 미니 스탯(러닝 프로필을 쓰는 팀만) */}
+          {runningProfileEnabled && (
           <div className="flex flex-wrap gap-1.5">
             <MiniStat label="역" value={profile.near_stn_nm || "-"} />
             <MiniStat
@@ -385,6 +398,7 @@ function OnboardingSection({ memId, teamId }: { memId: string; teamId: string })
             />
             <MiniStat label="페이스" value={paceLabel ?? "-"} />
           </div>
+          )}
 
           {/* 유입 경로 */}
           {srcLabel && (
@@ -856,18 +870,24 @@ function StatusChangeSheet({
 export function AdminMembersClient({
   teamId,
   initialTeamMemId,
+  reactivationRequests,
   duesEnabled,
   titlesEnabled,
+  runningProfileEnabled,
   viewer,
   cmmCdRows,
   participationDataStart,
 }: {
   teamId: string;
   initialTeamMemId?: string;
+  /** 대기 중인 재가입·활동 재개 요청(#767) — 상단 「재가입 요청 N건」 목록 */
+  reactivationRequests: ReactivationRequest[];
   /** 이 팀이 회비를 쓰는가(팀 설정 `feature.dues`) — 안 쓰면 회비잔액 열·잔액 처리를 안 그린다 */
   duesEnabled: boolean;
   /** 이 팀이 칭호를 쓰는가(팀 설정 `feature.titles`) — 안 쓰면 멤버 상세의 칭호 수여 칸을 안 그린다 */
   titlesEnabled: boolean;
+  /** 팀 설정 feature.running_profile — 끈 팀은 멤버 상세에 러닝 프로필(역·거리·페이스)을 안 그린다 */
+  runningProfileEnabled: boolean;
   /** 지금 화면을 보는 관리자 — 운영진 보호 판정(크루장만 운영진을 처리) */
   viewer: ManageActor;
   /** 공통코드 — 대회 신청 줄 스포츠 이름 */
@@ -1025,18 +1045,26 @@ export function AdminMembersClient({
     loadMembers();
   }, [loadMembers]);
 
-  const initialSelectDone = useRef(false);
+  // 이미 연 딥링크 id — **id 가 바뀌면 다시 연다.** 예전엔 불리언 하나라 이 화면이 마운트된 채로
+  // 다른 알림(?member=다른 id)을 누르면 두 번째부터 상세가 안 열렸다(#767).
+  const handledDeepLink = useRef<string | null>(null);
   useEffect(() => {
-    if (!initialTeamMemId || loading || initialSelectDone.current) return;
+    if (!initialTeamMemId || loading || handledDeepLink.current === initialTeamMemId) return;
     const found = members.find((m) => m.team_mem_id === initialTeamMemId);
     if (found) {
       // 딥링크(?memId) 도착 시 목록 로드 완료 후 상세 시트 1회 자동 오픈 — URL 파라미터
       // 동기화 effect라 set-state-in-effect는 오탐
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedMember(found);
-      initialSelectDone.current = true;
+      handledDeepLink.current = initialTeamMemId;
     }
   }, [initialTeamMemId, loading, members]);
+
+  // 재가입 요청 — 아직 활성이 아닌 사람의 대기 요청만(방금 활성으로 바꾼 줄은 목록 새로고침 전에도 사라진다)
+  const pendingRequests = reactivationRequests.flatMap((r) => {
+    const m = members.find((x) => x.id === r.memId);
+    return m && m.status !== "active" ? [{ ...r, member: m }] : [];
+  });
 
   const filtered = members.filter((m) => {
     if (!search) return true;
@@ -1238,6 +1266,46 @@ export function AdminMembersClient({
   return (
     <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
       <H2>회원 관리</H2>
+
+      {pendingRequests.length > 0 && (
+        <section
+          aria-label="재가입 요청"
+          className="flex flex-col gap-2 rounded-2xl border border-warning/40 bg-warning/5 p-4"
+        >
+          <Body className="font-semibold">재가입 요청 {pendingRequests.length}건</Body>
+          <ul className="flex flex-col divide-y divide-border">
+            {pendingRequests.map((r) => (
+              <li key={r.reactvReqId} className="flex items-center gap-2 py-2">
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 flex-col items-start text-left"
+                  onClick={() => setSelectedMember(r.member)}
+                >
+                  <Caption className="truncate font-semibold text-foreground">
+                    {r.member.full_name ?? "이름 없음"}
+                    {r.reqMemStCd === "inactive" ? " · 활동 재개 문의" : ""}
+                  </Caption>
+                  <Micro>{formatKST(r.crtAt, "M.DD HH:mm")} 요청</Micro>
+                  {(r.member.status === "left" || r.member.status === "inactive") &&
+                    r.member.inact_rsn_txt && (
+                      <Micro className="max-w-full truncate">사유 · {r.member.inact_rsn_txt}</Micro>
+                    )}
+                </button>
+                <Button
+                  size="sm"
+                  disabled={isPending}
+                  onClick={() => handleSheetReactivate(r.member.id, false)}
+                >
+                  활성으로
+                </Button>
+              </li>
+            ))}
+          </ul>
+          {duesEnabled && (
+            <Micro>잔액은 그대로 두고 활성으로 바꿔요. 잔액 초기화는 회원을 열어 상태 변경에서 해요.</Micro>
+          )}
+        </section>
+      )}
 
       {loadError && (
         <div className="flex flex-col gap-3">
@@ -1595,7 +1663,12 @@ export function AdminMembersClient({
               </div>
 
               {/* 온보딩 러닝 프로필 — 회원별 remount로 이전 회원 값 잔상 방지 */}
-              <OnboardingSection key={selectedMember.id} memId={selectedMember.id} teamId={teamId} />
+              <OnboardingSection
+                key={selectedMember.id}
+                memId={selectedMember.id}
+                teamId={teamId}
+                runningProfileEnabled={runningProfileEnabled}
+              />
 
               {/* 참여 현황 — 모임·대회 참여 요약/월별/최근 활동 */}
               <ParticipationSection

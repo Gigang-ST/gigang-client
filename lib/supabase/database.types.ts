@@ -2069,7 +2069,9 @@ export type Database = {
           gthr_id: string
           hist_id: string
           mem_id: string
+          noshow_yn: boolean
           reason_txt: string | null
+          reg_at: string | null
         }
         Insert: {
           actor_cd: string
@@ -2079,7 +2081,9 @@ export type Database = {
           gthr_id: string
           hist_id?: string
           mem_id: string
+          noshow_yn?: boolean
           reason_txt?: string | null
+          reg_at?: string | null
         }
         Update: {
           actor_cd?: string
@@ -2089,7 +2093,9 @@ export type Database = {
           gthr_id?: string
           hist_id?: string
           mem_id?: string
+          noshow_yn?: boolean
           reason_txt?: string | null
+          reg_at?: string | null
         }
         Relationships: [
           {

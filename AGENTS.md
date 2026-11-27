@@ -56,10 +56,10 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 - **프로젝트(`evt_team_mst`)는 타입이 여럿이다**(`MILEAGE_RUN` · `PB_CLASS`). 팀의 ACTIVE 프로젝트를 읽을 땐
   `evt_type_cd`로 거르고, **ACTIVE가 하나라고 가정하지 않는다**(`.maybeSingle()` 금지 — 둘이면 에러로 떨어진다).
   PB 참가자는 마일리지 `evt_team_prt_rel`이 아니라 `evt_pb_prt_rel`에 있다. 정본: `.claude/docs/database-schema-v2-event-domain.md` §6
-- **화면 문구에 팀 이름을 박지 않는다**(「기강」·「기강인」·「깅스타그램」). 팀이 여럿이다(울산 = 모보브).
+- **화면 문구에 팀 이름을 박지 않는다**(「기강」·「기강인」·「깅스타그램」). 팀이 여럿이다(울산 = 모비).
   서버 페이지가 `getTeamCopy()`(`lib/queries/team-copy.ts`)로 팀 문구를 꺼내 **필요한 칸만 골라**(`pickTeamCopy` +
   화면별 `○○_COPY_KEYS`) **props 로** 내려 준다 — 크루 이름·호칭·「{이름}의 전당」·말투가 들어 있다. 지면 검색 설명은
-  `getTeamPageDescription()`. 조사는 `josa()`(`lib/josa.ts` — 「기강은」/「모보브는」). 「기강」 뜻에 기댄 말장난은
+  `getTeamPageDescription()`. 조사는 `josa()`(`lib/josa.ts` — 「기강은」/「모비는」). 「기강」 뜻에 기댄 말장난은
   `lib/team-copy.ts` 의 `TEAM_VOICE`(없는 팀은 중립 문구). 팀 문구는 요청 주소를 읽으므로 **Suspense 안에서만** 부른다
   (미리 만드는 껍데기에서 부르면 그 페이지 전체가 껍데기 없이 그려진다). 새 팀 절차는 `docs/new-team-checklist.md`
   - 예외: `/join`(크루 소개)·`/rules`(회칙)는 본문이 기강 운영 내용이라 다른 팀 주소에선 홈으로 보낸다

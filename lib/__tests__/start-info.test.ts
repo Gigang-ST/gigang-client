@@ -95,7 +95,9 @@ describe("스키마", () => {
 describe("칩 코드 — 기존 순서 보존", () => {
   it("기존 가입 목적 7종이 앞 순서 그대로, 새 칩은 뒤에 붙는다", () => {
     expect(JOIN_PURP_CODES.slice(0, 7)).toEqual(["RUN_MATE", "COACH", "TRAINING", "NEW_SPORT", "RACE", "FRIENDS", "HABIT"]);
-    expect(JOIN_PURP_CODES.slice(7)).toEqual(["FIRST_FINISH", "PB", "HEALTH"]);
+    expect(JOIN_PURP_CODES.slice(7, 10)).toEqual(["FIRST_FINISH", "PB", "HEALTH"]);
+    // #748 트레일 크루 칩 — 역시 뒤에 붙는다(어느 팀이 무엇을 보이는지는 lib/team-signup)
+    expect(JOIN_PURP_CODES.slice(10)).toEqual(["MT_MATE", "TRAIL_START", "TRAIL_FINISH"]);
   });
   it("유입 경로는 기존 4종 순서 유지 + 기타가 맨 끝", () => {
     expect(JOIN_SRC_CODES.slice(0, 4)).toEqual(["FRIEND", "INSTA", "SOMOIM", "DAANGN"]);

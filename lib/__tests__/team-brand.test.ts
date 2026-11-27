@@ -14,7 +14,7 @@ describe("buildHeaderBrand", () => {
   });
 
   it("없는 값은 그 줄만 비운다", () => {
-    expect(buildHeaderBrand(null, "Climb hard, run wild")).toEqual({ since: null, slogan: "Climb hard, run wild" });
+    expect(buildHeaderBrand(null, "hobby is mountain")).toEqual({ since: null, slogan: "hobby is mountain" });
   });
 
   it("둘 다 없으면 그릴 게 없다", () => {

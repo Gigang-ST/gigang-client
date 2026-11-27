@@ -33,7 +33,7 @@ export async function fetchGatheringCancelHistoryRowsClient(
     .select(
       // mem_mst FK가 둘(mem_id·actor_mem_id) → 임베드 관계를 FK 이름으로 명시해야
       // PostgREST "more than one relationship" 에러를 피한다. 취소 대상은 mem_id.
-      "mem_id, evt_cd, reason_txt, evt_at, mem_mst!gthr_attd_hist_mem_id_fkey(mem_id, mem_nm, avatar_url)",
+      "mem_id, evt_cd, reason_txt, noshow_yn, evt_at, mem_mst!gthr_attd_hist_mem_id_fkey(mem_id, mem_nm, avatar_url)",
     )
     .eq("gthr_id", gthrId)
     .order("evt_at", { ascending: false });
@@ -49,6 +49,7 @@ export async function fetchGatheringCancelHistoryRowsClient(
     mem_id: string;
     evt_cd: "register" | "cancel";
     reason_txt: string | null;
+    noshow_yn?: boolean;
     evt_at: string;
     mem_mst:
       | { mem_id: string; mem_nm: string; avatar_url: string | null }
@@ -63,7 +64,8 @@ export async function fetchGatheringCancelHistoryRowsClient(
       mem_nm: mem?.mem_nm ?? "",
       avatar_url: mem?.avatar_url ?? null,
       evt_at: h.evt_at,
-      reason_txt: h.reason_txt,
+      // 노쇼 처리 사유(#759)는 운영 기록이라 멤버 화면엔 내리지 않는다.
+      reason_txt: h.noshow_yn ? null : h.reason_txt,
       evt_cd: h.evt_cd,
     };
   });

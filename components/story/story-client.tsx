@@ -33,6 +33,7 @@ import type { RecapTeaser } from "@/lib/mileage-recap";
 import type { TeamChannels } from "@/lib/team-channels";
 import { josa } from "@/lib/josa";
 import type { StoryCopy } from "@/lib/team-copy";
+import type { FooterContacts } from "@/lib/legal-docs";
 
 /**
  * 기강이야기 — 크루 소식 지면.
@@ -62,6 +63,7 @@ export function StoryClient({
   recap = null,
   channels,
   copy,
+  footerContacts,
 }: {
   feed: StoryFeed;
   /** 크루 총량 — 기상대 상자에 쓴다 */
@@ -98,6 +100,8 @@ export function StoryClient({
   channels: TeamChannels;
   /** 팀 문구 — 크루 이름·호칭·기능 이름·말투(§lib/team-copy). 서버 페이지가 내려 준다 */
   copy: StoryCopy;
+  /** 판권면 푸터 운영·문의 줄(약관과 같은 팀 설정 — §lib/legal-docs resolveFooterContacts) */
+  footerContacts: FooterContacts;
 }) {
   const [selected, setSelected] = useState<{ memId: string; name: string } | null>(
     null,
@@ -161,7 +165,7 @@ export function StoryClient({
           두는 건 이 지면이 "지금 크루가 어떤가"를 말하는 자리이기 때문이다. */}
       <PresenceCount />
 
-      <div className="flex flex-col gap-8 pb-8 pt-6">
+      <div className="flex flex-col gap-8 pt-6">
         {/* 기강 오버뷰 — 개별 소식(리드) 다음에 크루 전체 활동 지수(심박수) */}
         <StoryPulse overview={overview} copy={copy} />
 
@@ -195,8 +199,8 @@ export function StoryClient({
           unit="명"
           headerAction={
             <HelpTip title="새 얼굴">
-              최근 30일 안에 새로 들어온 {josa(copy.memberNoun, "이에요/예요")}. 카드를 누르면 러닝 프로필과
-              소개 한마디를 볼 수 있어요.
+              최근 30일 안에 새로 들어온 {josa(copy.memberNoun, "이에요/예요")}. 카드를 누르면{" "}
+              {copy.runningProfile ? "러닝 프로필과 소개 한마디를" : "가입 목적과 소개 한마디를"} 볼 수 있어요.
             </HelpTip>
           }
         >
@@ -212,6 +216,7 @@ export function StoryClient({
                   <MemberCardCompact
                     memId={nb.mem_id}
                     data={nb}
+                    runningProfile={copy.runningProfile}
                     onSelect={() => selectMember(nb.mem_id, nb.mem_nm)}
                   />
                 </li>
@@ -292,7 +297,7 @@ export function StoryClient({
         <div className="px-6">
           <SocialLinksGrid channels={channels} copy={copy} />
         </div>
-        <StoryLegalFooter copy={copy} />
+        <StoryLegalFooter copy={copy} contacts={footerContacts} />
       </div>
 
       <MemberCardDialog

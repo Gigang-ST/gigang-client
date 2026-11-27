@@ -3,6 +3,8 @@ import { dayjs } from "@/lib/dayjs";
 import { getCachedCmmCdRows } from "@/lib/queries/cmm-cd-cached";
 import { getCurrentMember } from "@/lib/queries/member";
 import { getRequestTeamContext } from "@/lib/queries/request-team";
+import { listPendingReactivationRequests } from "@/lib/reactivation-request";
+import { createUntypedAdminClient } from "@/lib/supabase/admin";
 import { getTeamCfg } from "@/lib/team-cfg/read";
 import { AdminMembersClient } from "./admin-members-client";
 
@@ -46,19 +48,30 @@ export default async function MembersPage({
   const initialTeamMemId = Array.isArray(member) ? member[0] : member;
   // 회비를 안 쓰는 팀(울산)은 회비잔액 열·잔액 처리를 그리지 않는다
   // 칭호 기능을 끈 팀은 멤버 상세의 칭호 수여 칸을 그리지 않는다
-  const [duesEnabled, titlesEnabled, cmmCdRows, participationDataStart] = await Promise.all([
+  // 러닝 프로필을 안 쓰는 팀(모비)은 멤버 상세의 역·거리·페이스를 그리지 않는다(가입 정보만)
+  const [duesEnabled, titlesEnabled, runningProfileEnabled, cmmCdRows, participationDataStart, reactivationRequests] = await Promise.all([
     getTeamCfg(teamId, "feature.dues"),
     getTeamCfg(teamId, "feature.titles"),
+    getTeamCfg(teamId, "feature.running_profile"),
     // 대회 신청 줄의 스포츠 이름(「트라이애슬론 · FULL」) — 기록관리(#673)와 같은 표기
     getCachedCmmCdRows(),
     getParticipationDataStart(supabase, teamId),
+    // 대기 중 재가입 요청(#767) — 운영진만 본다. 조회가 실패해도 회원 목록은 떠야 하므로 빈 목록으로 물러난다.
+    viewer?.admin
+      ? listPendingReactivationRequests(createUntypedAdminClient(), teamId).catch((e) => {
+          console.error("[admin-members] 재가입 요청 조회 실패", e);
+          return [];
+        })
+      : Promise.resolve([]),
   ]);
   return (
     <AdminMembersClient
       teamId={teamId}
       initialTeamMemId={initialTeamMemId}
+      reactivationRequests={reactivationRequests}
       duesEnabled={duesEnabled}
       titlesEnabled={titlesEnabled}
+      runningProfileEnabled={runningProfileEnabled}
       viewer={{ memId: viewer?.id ?? "", isOwner: viewer?.owner ?? false }}
       cmmCdRows={cmmCdRows}
       participationDataStart={participationDataStart}

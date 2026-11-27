@@ -454,7 +454,8 @@ function buildLedes(
           mem_nm: newbieLead.mem_nm,
           avatar_url: newbieLead.avatar_url,
         },
-        rows: getRunningProfileRows(newbieLead.running_profile ?? null),
+        // 러닝 프로필을 안 쓰는 팀(모비)은 페이스·거리·역 줄을 세우지 않는다(팀 설정 feature.running_profile)
+        rows: copy.runningProfile ? getRunningProfileRows(newbieLead.running_profile ?? null) : [],
         intro: newbieLead.intro_txt?.trim() || null,
         // 한마디와 칩은 독립적으로 뽑는다 — 둘 다 있으면 둘 다 보여준다(렌더가 조합).
         purposeTxt: newbieLead.running_profile?.join_purp_txt?.trim() || null,
@@ -1638,8 +1639,9 @@ export function StoryLede({
                   // (빠른 러너가 폼만 안 채웠을 수도 있다). 그래서 "일지도 몰라요"로 여지를 두고,
                   // 크루가 할 일(먼저 인사)로 문장을 닫는다 — 빈 칸을 설명이 아니라 초대로 쓴다.
                   <p className="break-keep text-[13px] leading-relaxed text-muted-foreground">
-                    러닝 프로필이 비어 있어요. 이제 막 달리기를 시작한
-                    새내기일지도 몰라요 — 만나면 먼저 인사 건네주세요.
+                    {copy.runningProfile
+                      ? "러닝 프로필이 비어 있어요. 이제 막 달리기를 시작한 새내기일지도 몰라요 — 만나면 먼저 인사 건네주세요."
+                      : "아직 소개가 비어 있어요. 이제 막 합류한 새 얼굴이에요 — 만나면 먼저 인사 건네주세요."}
                   </p>
                 )}
             </>
