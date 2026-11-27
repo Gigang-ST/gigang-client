@@ -59,7 +59,8 @@ export function ghostPosterLines(g: GhostMember): {
     const status = `${g.days_ago}일째 실종`;
     return { status, detail: `최종 목격 ${dt}`, aria: status };
   }
-  if (g.since_join) {
+  // 칸이 없으면(옛 함수 결과) 예전 화면처럼 「가입」으로 읽는다 — §GhostMember.since_join
+  if (g.since_join ?? true) {
     return {
       status: "가입 후 무소식",
       detail: `가입 ${dt} · ${g.days_ago}일`,

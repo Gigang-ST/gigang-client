@@ -147,8 +147,13 @@ describe("ghostPosterLines — 포스터 문구 세 갈래", () => {
     expect(Object.values(lines).join(" ")).not.toContain("가입");
   });
 
-  it("since_join 이 없는 옛 캐시는 「가입」이라 쓰지 않는 쪽으로", () => {
-    const g = { ...base, never_actv: true, days_ago: 40 };
-    expect(ghostPosterLines(g).status).toBe("40일째 무소식");
+  it("since_join 이 없는 옛 함수 결과는 예전 화면처럼 「가입 후 무소식」", () => {
+    // 옛 함수에선 흔적 없는 행의 날짜가 늘 계정 생성일이었다 — 배포가 마이그레이션보다 먼저여도 말이 안 바뀐다(#773 리뷰)
+    const g = { ...base, never_actv: true, last_actv_dt: "2026-10-12", days_ago: 40 };
+    expect(ghostPosterLines(g)).toEqual({
+      status: "가입 후 무소식",
+      detail: "가입 26.10.12 · 40일",
+      aria: "가입 40일째 무소식",
+    });
   });
 });
