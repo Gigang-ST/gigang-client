@@ -224,7 +224,7 @@ export function SettingsClient({
   weekStart,
   channels,
   copy,
-  intro = null,
+  intro,
 }: {
   isAdmin: boolean;
   /** 세션이 있는가 — 없으면 계정 그룹이 로그아웃 대신 로그인 한 줄이 된다 */
@@ -244,7 +244,7 @@ export function SettingsClient({
   /** 팀 문구 — 크루 이름·호칭·정식 이름(§lib/team-copy) */
   copy: SettingsCopy;
   /** 맨 아래 크루 소개 한 줄(팀 설정 `brand.intro` — 로그인 화면과 같은 값). 없으면 줄째 안 그린다 */
-  intro?: string | null;
+  intro: string | null;
 }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);

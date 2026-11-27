@@ -252,13 +252,14 @@ export const TEAM_CFG_REGISTRY = {
    * 안 그린다. 예전엔 두 화면에 기강 문구가 따로 박혀 있어(「모여 만든 스포츠 팀」 / 「함께 만드는 팀」) 문장도 어긋났고
    * 모비 화면에도 기강 소개가 떴다(2026-11-27 데이터로 옮김).
    * 검색 설명(`seo.description`)과 다르다 — 그건 카톡·검색 미리보기용 문장이라 지역·종목을 넣어 길고, 이건 화면에 찍는 짧은 말이다.
-   * 로그인 칸(280px · 15px)에서 두 줄 안에 들어가게 40자로 묶는다.
+   * 로그인 칸(280px · 15px)은 한글이 한 줄에 18자쯤이라, 어절 단위로 끊겨도 두 줄 안에 들도록 36자로 묶는다
+   * (40자면 세 줄로 넘어갈 수 있다 — #772 리뷰).
    */
   "brand.intro": defineCfg({
-    schema: z.string().trim().min(1).max(40).nullable(),
+    schema: z.string().trim().min(1).max(36).nullable(),
     default: null,
     label: "크루 소개 한 줄",
-    description: "로그인 화면과 더보기 맨 아래에 보이는 짧은 소개(40자까지). 비우면 안 보여요.",
+    description: "로그인 화면과 더보기 맨 아래에 보이는 짧은 소개(36자까지). 비우면 안 보여요.",
     shownAt: "로그인 화면 로고 바로 아래, 더보기 화면 맨 아래(버전·저작권 줄 밑)에 보여요.",
     visibility: "public",
     group: "brand",
