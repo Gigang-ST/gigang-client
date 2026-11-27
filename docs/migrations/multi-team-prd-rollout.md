@@ -47,6 +47,7 @@
 | 35 | **배포 전 필수** 신입 안내 칩·「더 알아보기」를 팀 설정으로 — 기강 문구 그대로 옮겨 넣기(`newbie.activities`·`newbie.sections`, PR #745 · #748). 빠지면 기강 신입 안내에서 칩과 안내 칸이 사라진다 | `20261123110000_newbie_guide_cfg.sql` | ✅ (2026-11-23, execute_sql + 이력 행 직접, 값 해시 대조) | ⬜ |
 | 36 | **배포 전 필수** 울산 러닝 프로필 끄기(`feature.running_profile` = false) — 빠지면 울산 가입에 러닝 프로필 단계(수도권 지하철역)가 다시 생기고 카드·프로필 수정에도 보인다 | `20261126100000_ulsan_running_profile_off.sql` | ✅ (2026-11-26, execute_sql + 이력 행 직접) | ⬜ |
 | 37 | 가입 목적 공통코드에 트레일 칩 3개(`MT_MATE`·`TRAIL_START`·`TRAIL_FINISH`) — 배포 전후 무관(앱은 안 읽는다) | `20261126110000_join_purp_trail_codes.sql` | ✅ (2026-11-26) | ⬜ |
+| 38 | 정기 모임 안내(`gathering.regular_intro` — 가입 「참석 약속」 문구, 기강 정기런·격주 수요일 저녁 / 울산 정기 모임·매달 둘째 주 금요일) — 배포 전 권장(빠지면 요일 없는 중립 문장) | `20261127100000_gathering_regular_intro.sql` | ✅ (2026-11-27) | ⬜ |
 
 prd 적용(1~29, 10 제외): 2026-11-15. 배포 전 단계 12:38~12:48 UTC, PR #648(dev→main) 머지 12:53 UTC(`75ceddc`) ·
 운영 배포 완료 12:56 UTC, 20·25·29는 그 직후. 적용 기록(`schema_migrations`) 버전은 파일 이름 버전으로 맞춰 뒀다

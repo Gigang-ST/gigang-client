@@ -108,7 +108,7 @@ async function OnboardingContent({
   // 오픈채팅 주소·비밀번호는 이 팀 것(팀 설정) — 없는 팀은 안내를 안 그린다.
   // 이미 있는 사람(다른 팀 회원·이 팀에서 삭제됐던 회원)이면 사람 정보를 미리 채운 폼을 보여 준다 —
   // 바로 가입시키지 않고, 팀 정보는 새로 받고, 본인이 마지막에 가입을 누른다(onboardingJoinTeam).
-  const [gatherings, channels, kakaoChatPassword, existingPerson, otherTeamCfg, h, copy, duesEnabled, signup] = await Promise.all([
+  const [gatherings, channels, kakaoChatPassword, existingPerson, otherTeamCfg, h, copy, duesEnabled, signup, regularIntro] = await Promise.all([
     getOpenGatheringsForPledge(),
     getTeamChannels(teamId),
     getTeamKakaoPassword(teamId),
@@ -121,6 +121,8 @@ async function OnboardingContent({
     getTeamCfg(teamId, "feature.dues"),
     // 팀 가입 설정 — 단계(러닝 프로필 사용 여부)·가입 목적 칩(§lib/team-signup, #748)
     getRequestTeamSignup(),
+    // 참석 약속 단계의 「정기런(격주 수요일 저녁)을 추천해요」 — 팀 설정(§lib/regular-intro)
+    getTeamCfg(teamId, "gathering.regular_intro"),
   ]);
   // 「○○ 가입이세요? 여기로 →」 — 다른 팀 주소의 로그인으로 보낸다(주소마다 로그인이 따로라 거기서 다시 로그인한다).
   // 주소는 접속 환경(운영·dev·로컬)에 맞는 그 팀 주소로 만든다.
@@ -150,6 +152,7 @@ async function OnboardingContent({
           copy={pickTeamCopy(copy, ONBOARDING_COPY_KEYS)}
           signup={signup}
           duesEnabled={duesEnabled}
+          regularIntro={regularIntro}
         />
       </div>
     </div>

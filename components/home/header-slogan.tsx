@@ -19,7 +19,9 @@ export function HeaderSlogan({ brand }: { brand: HeaderBrand }) {
         </p>
       ) : null}
       {brand.slogan ? (
-        <p className="max-w-52 truncate font-sans text-[13px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
+        // px-[0.2em] — 기울임 굵은 글씨는 마지막 글자 윗부분이 글자 칸 밖으로 기운다. truncate(overflow hidden)가 그걸 잘라
+        // 「모비」·「기강」 슬로건 끝 글자가 깎여 보였다(2026-11-27 — 폭은 13px 대문자 128~143px로 칸 208px에 넉넉히 들어간다)
+        <p className="max-w-52 truncate px-[0.2em] font-sans text-[13px] font-black italic uppercase leading-tight tracking-[-0.03em] text-foreground">
           {brand.slogan}
         </p>
       ) : null}

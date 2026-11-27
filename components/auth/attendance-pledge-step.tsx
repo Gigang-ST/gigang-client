@@ -6,6 +6,7 @@ import { Users } from "lucide-react";
 
 import { formatKST } from "@/lib/dayjs";
 import type { PledgeGathering } from "@/lib/queries/onboarding-gatherings";
+import { pledgeEmptyLines, pledgeRecommendLine, type RegularIntro } from "@/lib/regular-intro";
 
 import { Body, Caption, H2 } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,8 @@ import { CardItem } from "@/components/ui/card";
 
 type AttendancePledgeStepProps = {
   gatherings: PledgeGathering[];
+  /** 팀 설정 「정기 모임 안내」(이름 + 일정). 없으면 요일 없는 중립 문장(§lib/regular-intro) */
+  regularIntro?: RegularIntro | null;
   onComplete: (pledgeGthrId: string | null) => void | Promise<void>;
   submitting: boolean;
 };
@@ -23,6 +26,7 @@ type AttendancePledgeStepProps = {
  */
 export function AttendancePledgeStep({
   gatherings,
+  regularIntro = null,
   onComplete,
   submitting,
 }: AttendancePledgeStepProps) {
@@ -41,8 +45,8 @@ export function AttendancePledgeStep({
             모임에 한번 나와주세요!
           </H2>
           <Body className="text-muted-foreground">
-            정기런(격주 수요일)을 추천해요. <br/>처음엔 다들 어색하지만, 한 번
-            나오면 달라져요.
+            {pledgeRecommendLine(regularIntro)} <br />
+            처음엔 다들 어색하지만, 한 번 나오면 달라져요.
           </Body>
         </div>
         <Button
@@ -57,17 +61,20 @@ export function AttendancePledgeStep({
 
   // 화면 B: 모임 선택 — 열린 모임이 없으면 안내
   if (gatherings.length === 0) {
+    const empty = pledgeEmptyLines(regularIntro);
     return (
       <div className="flex flex-col gap-6">
         <CardItem variant="dashed" className="text-center">
           <Body className="text-muted-foreground">
-            다음 정기런이 열리면 가장 먼저 알려드릴게요 🏃
-            <br />
-            정기런은{" "}
-            <span className="font-semibold text-foreground">
-              격주 수요일 저녁
-            </span>
-            에 열려요.
+            {empty.next}
+            {empty.when && (
+              <>
+                <br />
+                {empty.when.before}
+                <span className="font-semibold text-foreground">{empty.when.when}</span>
+                {empty.when.after}
+              </>
+            )}
           </Body>
         </CardItem>
         <Button

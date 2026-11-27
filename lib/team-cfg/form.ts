@@ -19,6 +19,8 @@ export const CFG_GROUPS: { group: CfgGroup; label: string }[] = [
   { group: "member_info", label: "크루 안내" },
   // 신입 안내(/newbie) — 크루 안내 다음, 처음 온 사람에게 보이는 것이라서
   { group: "newbie", label: "신입 안내" },
+  // 약관에 들어가는 값(운영 주체·개인정보 문의) — 회원 안내(크루 안내)와 성격이 달라 떼었다(2026-11-27)
+  { group: "legal", label: "약관·개인정보" },
   { group: "feature", label: "기능" },
 ];
 
@@ -38,6 +40,7 @@ export const CFG_ORDER: readonly string[] = [
   "kakao.room_id",
   "gathering.default_sport",
   "gathering.regular_template",
+  "gathering.regular_intro",
   "brand.name",
   "brand.member_noun",
   "brand.slogan",
@@ -120,6 +123,10 @@ export function summarizeCfg(input: CfgInput, isSet: boolean, value: unknown): s
     case "channels": {
       const n = Object.keys((value as Record<string, string> | null) ?? {}).length;
       return n > 0 ? `${n}개 연결` : "설정 안 함";
+    }
+    case "regular_intro": {
+      const v = value as { name?: string; when?: string } | null;
+      return v?.name?.trim() ? `${v.name.trim()} · ${v.when?.trim() ?? ""}` : "설정 안 함";
     }
     case "regular_template": {
       const v = value as { title?: string } | null;
