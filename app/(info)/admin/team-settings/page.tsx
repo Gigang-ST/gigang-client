@@ -46,6 +46,7 @@ export default async function TeamSettingsPage() {
       cd,
       label: def.label,
       description: def.description,
+      shownAt: def.shownAt,
       group: def.group,
       input: def.input,
       status: cfgStatus(isSet, def.default),

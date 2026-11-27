@@ -17,12 +17,14 @@ import {
   type CfgStatus,
 } from "@/lib/team-cfg/form";
 import type { CfgGroup, CfgInput, TeamCfgCd } from "@/lib/team-cfg/registry";
+import { josaOf } from "@/lib/josa";
+import { regularIntroLine } from "@/lib/regular-intro";
 import { cn } from "@/lib/utils";
 
 import { resetTeamSetting, saveTeamSetting } from "@/app/actions/admin/team-settings";
 import type { GuideSection } from "@/lib/newbie-guide";
 
-import { GuideSectionsEditor, LinesEditor } from "./newbie-guide-editors";
+import { ChipsEditor, GuideSectionsEditor } from "./newbie-guide-editors";
 
 import {
   ResponsiveDrawer,
@@ -31,6 +33,7 @@ import {
   ResponsiveDrawerHeader,
   ResponsiveDrawerTitle,
 } from "@/components/common/responsive-drawer";
+import { HelpTip } from "@/components/common/help-tip";
 import { Body, Caption, H2, Micro, SectionLabel } from "@/components/common/typography";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card";
@@ -44,6 +47,8 @@ export type TeamSettingItem = {
   cd: TeamCfgCd;
   label: string;
   description: string;
+  /** 이 값이 앱 어디에 보이는지 — 물음표(?)가 보여 준다(§lib/team-cfg/registry `shownAt`) */
+  shownAt: string;
   group: CfgGroup;
   input: CfgInput;
   status: CfgStatus;
@@ -164,7 +169,10 @@ function SettingRow({
     return (
       <div className={rowClass}>
         <div className="flex min-w-0 flex-1 flex-col">
-          <Body className="font-medium">{item.label}</Body>
+          <span className="flex items-center gap-0.5">
+            <Body className="font-medium">{item.label}</Body>
+            <ShownAtTip item={item} />
+          </span>
           <Micro>owner만 바꿀 수 있어요</Micro>
         </div>
         <Caption className="min-w-0 truncate text-right">{item.summary}</Caption>
@@ -175,7 +183,11 @@ function SettingRow({
   if (item.input.kind === "boolean") {
     return (
       <div className={rowClass}>
-        <Body className="flex-1 font-medium">{item.label}</Body>
+        <span className="flex flex-1 items-center gap-0.5">
+          <Body className="font-medium">{item.label}</Body>
+          {/* 켜고 끄기는 시트를 안 열어서, 어디에 보이는지를 줄에서 바로 묻게 한다 */}
+          <ShownAtTip item={item} />
+        </span>
         <Caption>{item.summary}</Caption>
         <Switch
           checked={item.value === true}
@@ -196,6 +208,15 @@ function SettingRow({
       </Caption>
       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
     </button>
+  );
+}
+
+/** 물음표(?) — 이 설정이 앱 어디에 보이는지. 캡처 대신 글로 적는다(§registry `shownAt`) */
+function ShownAtTip({ item }: { item: Pick<TeamSettingItem, "label" | "shownAt"> }) {
+  return (
+    <HelpTip title={`「${item.label}」${josaOf(item.label, "은/는")} 어디에 보이나요`} align="start">
+      {item.shownAt}
+    </HelpTip>
   );
 }
 
@@ -249,7 +270,10 @@ function SettingSheet({
       <ResponsiveDrawerContent className="flex max-h-[90svh] flex-col gap-0" dialogClassName="max-w-md">
         <ResponsiveDrawerHeader className="px-4 py-4 text-left">
           <div className="flex items-center justify-between gap-2">
-            <ResponsiveDrawerTitle>{item.label}</ResponsiveDrawerTitle>
+            <span className="flex items-center gap-0.5">
+              <ResponsiveDrawerTitle>{item.label}</ResponsiveDrawerTitle>
+              <ShownAtTip item={item} />
+            </span>
             <StatusBadge status={item.status} />
           </div>
           <ResponsiveDrawerDescription>{item.description}</ResponsiveDrawerDescription>
@@ -352,9 +376,11 @@ function Editor({
           onSave={onSave}
         />
       );
+    case "regular_intro":
+      return <RegularIntroEditor value={item.value as RegularIntroValue | null} pending={pending} onSave={onSave} />;
     case "lines":
       return (
-        <LinesEditor
+        <ChipsEditor
           value={Array.isArray(item.value) ? (item.value as string[]) : []}
           placeholder={item.input.placeholder}
           pending={pending}
@@ -596,6 +622,38 @@ function ChannelsEditor({
   );
 }
 
+type RegularIntroValue = { name: string; when: string };
+
+/** 정기 모임 안내 — 이름 + 일정. 둘 다 비우면 설정을 지운다(요일 없는 중립 안내) */
+function RegularIntroEditor({
+  value,
+  pending,
+  onSave,
+}: {
+  value: RegularIntroValue | null;
+  pending: boolean;
+  onSave: (v: unknown) => void;
+}) {
+  const [name, setName] = useState(value?.name ?? "");
+  const [when, setWhen] = useState(value?.when ?? "");
+  const half = Boolean(name.trim()) !== Boolean(when.trim());
+  const preview = name.trim() && when.trim() ? `「${regularIntroLine(name.trim(), when.trim())}」` : null;
+  return (
+    <div className="flex flex-col gap-2">
+      {/* 길이 상한은 서버 형식(registry gathering.regular_intro — 이름 20·일정 40)과 같다 — 넘기면 저장이 이유 없이 거절된다 */}
+      <LabeledInput label="이름" value={name} onChange={setName} placeholder="예: 정기 모임" maxLength={20} />
+      <LabeledInput label="일정" value={when} onChange={setWhen} placeholder="예: 매달 둘째 주 금요일 저녁" maxLength={40} />
+      {preview && <Caption>가입 화면에 이렇게 보여요: {preview}</Caption>}
+      {half && <Caption className="text-destructive">이름과 일정을 둘 다 넣거나 둘 다 비워 주세요</Caption>}
+      <SaveButton
+        pending={pending}
+        disabled={half}
+        onClick={() => onSave(!name.trim() && !when.trim() ? null : { name: name.trim(), when: when.trim() })}
+      />
+    </div>
+  );
+}
+
 type TemplateValue = { title: string; default_time: string; desc: string };
 
 function TemplateEditor({
@@ -695,16 +753,18 @@ function LabeledInput({
   value,
   onChange,
   placeholder,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  maxLength?: number;
 }) {
   return (
     <div className="flex flex-col gap-1">
       <Label>{label}</Label>
-      <Input value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      <Input value={value} placeholder={placeholder} maxLength={maxLength} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }

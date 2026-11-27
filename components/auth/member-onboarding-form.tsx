@@ -50,6 +50,7 @@ import {
 } from "@/lib/validations/start-info";
 import { SignupProgress } from "@/components/auth/signup-progress";
 import { DEFAULT_TEAM_SIGNUP, hasRunningProfileStep, type TeamSignup } from "@/lib/team-signup";
+import type { RegularIntro } from "@/lib/regular-intro";
 import { StationCombobox } from "@/components/auth/station-combobox";
 import { Caption, H2 } from "@/components/common/typography";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
@@ -104,6 +105,8 @@ type MemberOnboardingFormProps = {
   signup?: TeamSignup;
   /** 회비 기능(팀 설정 feature.dues) — 끈 팀은 완료 화면에 계좌 등록 링크를 안 세운다(계좌는 회비 환급용이라) */
   duesEnabled?: boolean;
+  /** 팀 설정 「정기 모임 안내」 — 참석 약속 단계 추천 문구(§lib/regular-intro) */
+  regularIntro?: RegularIntro | null;
 };
 
 /** 미리 채운 정보를 고치면 어디까지 바뀌는지 — 사람 정보는 가입한 모든 팀이 같이 쓴다 */
@@ -155,6 +158,7 @@ export function MemberOnboardingForm({
   copy,
   signup = DEFAULT_TEAM_SIGNUP,
   duesEnabled = true,
+  regularIntro = null,
 }: MemberOnboardingFormProps) {
   // 러닝 프로필 단계가 없는 팀(모비)은 기본 정보 → 가입 목적으로 바로 간다
   const runningProfile = hasRunningProfileStep(signup);
@@ -553,6 +557,7 @@ export function MemberOnboardingForm({
             ) : null}
             <AttendancePledgeStep
               gatherings={gatherings}
+              regularIntro={regularIntro}
               onComplete={handlePledgeComplete}
               submitting={submitting}
             />

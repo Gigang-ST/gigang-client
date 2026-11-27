@@ -35,6 +35,7 @@ function itemsFor(overrides: Partial<Record<TeamCfgCd, unknown>> = {}) {
         cd,
         label: def.label,
         description: def.description,
+        shownAt: def.shownAt,
         group: def.group,
         input: def.input,
         status: cfgStatus(isSet, def.default),
@@ -94,5 +95,20 @@ describe("팀 설정 화면 — 요약 목록", () => {
     const locked = text(render(itemsFor(), false));
     expect(locked).toContain("owner만 바꿀 수 있어요");
     expect(text(render(itemsFor(), true))).not.toContain("owner만 바꿀 수 있어요");
+  });
+});
+
+describe("어디에 보이나요(?) · 분류 — 2026-11-27", () => {
+  it("모든 설정에 「어디에 보이나요」 설명이 있다(물음표가 빈 말을 하지 않게)", () => {
+    for (const [cd, def] of Object.entries(TEAM_CFG_REGISTRY)) {
+      expect(def.shownAt.trim().length, cd).toBeGreaterThan(10);
+    }
+  });
+
+  it("약관 값(운영 주체·개인정보 문의)은 「약관·개인정보」 묶음, 정기 모임 안내는 「운영」에 있다", () => {
+    expect(TEAM_CFG_REGISTRY["legal.operator"].group).toBe("legal");
+    expect(TEAM_CFG_REGISTRY["legal.contact"].group).toBe("legal");
+    expect(TEAM_CFG_REGISTRY["gathering.regular_intro"].group).toBe("operation");
+    expect(text(render())).toContain("약관·개인정보");
   });
 });

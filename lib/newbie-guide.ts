@@ -35,6 +35,9 @@ export const guideSectionSchema = z.object({
 export type GuideSection = z.infer<typeof guideSectionSchema>;
 
 export const guideSectionsSchema = z.array(guideSectionSchema).max(20);
+/** 칩 예시 — 이모지는 JSX 본문에 치지 않고 문자열에서 가져온다(Tailwind v4 스캐너가 서로게이트 쌍을 깨 빌드가 터진다, DESIGN.md) */
+export const GUIDE_CHIP_EXAMPLE = "🏃 러닝";
+
 export const guideActivitiesSchema = z.array(z.string().trim().min(1).max(20)).max(20);
 
 /** 화면에 세울 칸 — 숨긴 칸과 본문이 빈 칸은 뺀다(빈 드롭다운을 열면 아무것도 없다) */
